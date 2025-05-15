@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
+  <!-- MathJax für LaTeX-Formeln -->
+<script>
+  window.MathJax = {
+    tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+    svg: { fontCache: 'global' }
+  };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
   <meta charset="UTF-8">
   <title>Streckenrechner</title>
   <style>
@@ -147,28 +155,53 @@
     </div>
   </div>
 
-  <!-- Info Modal -->
   <div class="modal" id="infoModal">
-    <div class="modal-content">
-      <span class="close" onclick="document.getElementById('infoModal').style.display='none'">&times;</span>
-      <h2>Hintergrund & Annahmen</h2>
-      <p>Diese Berechnung basiert auf der Annahme, dass du mit konstanter Leistung 720 Sekunden lang gelaufen bist.</p>
-      <p>Ein Viertel der Strecke wurde mit Gegenwind (22 km/h) zurückgelegt, drei Viertel ohne.</p>
-      <p>Die Berechnung vergleicht diese reale Laufleistung mit der hypothetischen Leistung bei Windstille, um zu ermitteln, wie weit du bei identischer Leistung ohne Wind gekommen wärst.</p>
-      <h3>Gleichung</h3>
-      <pre style="white-space: pre-wrap;">
-a * (v + s₁ / (t - (3s / 4x)))² * (s₁ / (t - (3s / 4x))) + f * (s₁ / (t - (3s / 4x))) 
-= a * x³ + f * x
+  <div class="modal-content">
+    <span class="close" onclick="document.getElementById('infoModal').style.display='none'">&times;</span>
+    <h2>Hintergrund & Annahmen</h2>
 
-wobei:
-a = 0.5 * w * C * A
-f = α * m
-v = 22 / 3.6 m/s
-t = 720 s
-s₁ = 0.25 * s
-</pre>
-    </div>
+    <p>Diese Berechnung basiert auf einem Lauf mit konstanter Leistung über 720 Sekunden. Der erste Abschnitt (1/4 der Strecke) wurde gegen den Wind gelaufen (22 km/h Gegenwind), die restlichen 3/4 ohne Wind.</p>
+
+    <h3>Formeln:</h3>
+    <p>1. Zeitaufteilung:</p>
+    <p>\[
+    t_{\text{wind}} + t_{\text{windlos}} = 720\,\text{s}
+    \]</p>
+
+    <p>2. Wind-Streckenverhältnis:</p>
+    <p>\[
+    t_{\text{wind}} \cdot v_{\text{wind}} = \frac{1}{4} \cdot s_{\text{gesamt}}
+    \]</p>
+
+    <p>3. Windlose Strecke:</p>
+    <p>\[
+    t_{\text{windlos}} \cdot v_{\text{windlos}} = \frac{3}{4} \cdot s_{\text{gesamt}}
+    \]</p>
+
+    <p>4. Leistungskonstanz:</p>
+    <p>\[
+    P(v_{\text{wind}}, v_{\text{gegenwind}}) = P(v_{\text{windlos}})
+    \]</p>
+
+    <p>Eingesetzt:</p>
+    <p>\[
+    \frac{1}{2} \rho C_d A (v + v_{\text{eff}})^2 \cdot v_{\text{eff}} + \alpha m v_{\text{eff}} = \frac{1}{2} \rho C_d A v^3 + \alpha m v
+    \]</p>
+
+    <h3>Erklärung der Symbole:</h3>
+    <table style="width:100%; font-size: 0.95rem;">
+      <tr><td>\( \rho \)</td><td>Luftdichte (ca. 1.2–1.3 kg/m³)</td></tr>
+      <tr><td>\( C_d \)</td><td>Widerstandsbeiwert (dimensionslos, ca. 0.98–1.05)</td></tr>
+      <tr><td>\( A \)</td><td>Stirnfläche der Person in m² (abhängig vom Körperbau)</td></tr>
+      <tr><td>\( v \)</td><td>Windlose Zielgeschwindigkeit</td></tr>
+      <tr><td>\( v_{\text{eff}} \)</td><td>effektive Geschwindigkeit im Windabschnitt</td></tr>
+      <tr><td>\( v + v_{\text{eff}} \)</td><td>relative Luftgeschwindigkeit gegen den Wind</td></tr>
+      <tr><td>\( m \)</td><td>Körpermasse in kg</td></tr>
+      <tr><td>\( \alpha \)</td><td>metabolischer Widerstandskoeffizient (ca. 0.95–1.1)</td></tr>
+    </table>
   </div>
+</div>
+
 
   <script>
     const streckeInput = document.getElementById("strecke");
