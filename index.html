@@ -142,7 +142,7 @@
                   if (denom <= 0) return NaN;
 
                   const v_eff = 0.25 * s / denom;
-                  const left = a * Math.pow(v + v_eff, 3) + f * v_eff;
+                  const left = a * Math.pow(v + v_eff, 2) * v_eff + f * v_eff;
                   const right = a * Math.pow(x, 3) + f * x;
                   return left - right;
                 }
