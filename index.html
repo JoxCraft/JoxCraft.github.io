@@ -77,10 +77,49 @@
     .bar.max {
       background-color: crimson;
     }
+
+    .info-button {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      font-size: 24px;
+      cursor: pointer;
+      background: none;
+      border: none;
+    }
+
+    .modal {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background-color: rgba(0,0,0,0.6);
+      display: none;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 20px;
+      max-width: 600px;
+      border-radius: 10px;
+    }
+
+    .modal-content h2 {
+      margin-top: 0;
+    }
+
+    .close {
+      float: right;
+      font-size: 1.2rem;
+      cursor: pointer;
+    }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.1/math.min.js"></script>
 </head>
 <body>
+  <button class="info-button" onclick="document.getElementById('infoModal').style.display = 'flex'">ℹ️</button>
+
   <h1>Berechnung der tatsächlichen Strecke</h1>
 
   <div class="form-grid">
@@ -108,6 +147,29 @@
     </div>
   </div>
 
+  <!-- Info Modal -->
+  <div class="modal" id="infoModal">
+    <div class="modal-content">
+      <span class="close" onclick="document.getElementById('infoModal').style.display='none'">&times;</span>
+      <h2>Hintergrund & Annahmen</h2>
+      <p>Diese Berechnung basiert auf der Annahme, dass du mit konstanter Leistung 720 Sekunden lang gelaufen bist.</p>
+      <p>Ein Viertel der Strecke wurde mit Gegenwind (22 km/h) zurückgelegt, drei Viertel ohne.</p>
+      <p>Die Berechnung vergleicht diese reale Laufleistung mit der hypothetischen Leistung bei Windstille, um zu ermitteln, wie weit du bei identischer Leistung ohne Wind gekommen wärst.</p>
+      <h3>Gleichung</h3>
+      <pre style="white-space: pre-wrap;">
+a * (v + s₁ / (t - (3s / 4x)))² * (s₁ / (t - (3s / 4x))) + f * (s₁ / (t - (3s / 4x))) 
+= a * x³ + f * x
+
+wobei:
+a = 0.5 * w * C * A
+f = α * m
+v = 22 / 3.6 m/s
+t = 720 s
+s₁ = 0.25 * s
+</pre>
+    </div>
+  </div>
+
   <script>
     const streckeInput = document.getElementById("strecke");
     const resultInput = document.getElementById("result");
@@ -122,11 +184,14 @@
       const mValues = gender === "w" ? [55, 70] : [65, 80];
 
       const s = strecke;
-      const v = 22 / 3.6; // feste Windgeschwindigkeit in m/s
-      const t = 720; // Sekunden
+      const v = 22 / 3.6;
+      const t = 720;
 
       let xMin = Infinity;
       let xMax = -Infinity;
+
+      const xStart = 0.5;
+      const xEnd = Math.max(10, s / 50); // Dynamischer Bereich für große s
 
       for (const w of wValues) {
         for (const C of CValues) {
@@ -141,19 +206,20 @@
                   const denom = t - (3 * s) / (4 * x);
                   if (denom <= 0) return NaN;
 
-                  const v_eff = 0.25 * s / denom;
+                  const s1 = 0.25 * s;
+                  const v_eff = s1 / denom;
                   const left = a * Math.pow(v + v_eff, 2) * v_eff + f * v_eff;
                   const right = a * Math.pow(x, 3) + f * x;
                   return left - right;
                 }
 
-                for (let x = 0.5; x <= 10; x += 0.01) {
+                for (let x = xStart; x <= xEnd; x += 0.01) {
                   const y1 = func(x);
                   const y2 = func(x + 0.01);
 
                   if (isNaN(y1) || isNaN(y2)) continue;
                   if (y1 * y2 < 0) {
-                    const root = x - y1 * (0.01 / (y2 - y1)); // lineare Interpolation
+                    const root = x - y1 * (0.01 / (y2 - y1));
                     if (root > 0) {
                       if (root < xMin) xMin = root;
                       if (root > xMax) xMax = root;
@@ -214,7 +280,7 @@
       radio.addEventListener("change", updateResult);
     });
 
-    updateResult(); // initiales Ergebnis anzeigen
+    updateResult(); // initial aufrufen
   </script>
 </body>
 </html>
