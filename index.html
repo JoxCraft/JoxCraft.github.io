@@ -222,7 +222,7 @@ v' = \frac{r \cdot s}{720 - \frac{(1 - r) \cdot s_{\text{gesamt}}}{v_{\text{wind
     const barMin = document.getElementById("barMin");
     const barMax = document.getElementById("barMax");
 
-    function linspace(start, end, num) {
+   function linspace(start, end, num) {
   const step = (end - start) / (num - 1);
   return Array.from({ length: num }, (_, i) => start + i * step);
 }
@@ -232,13 +232,13 @@ function calculateStrecke(strecke, gender) {
   const t = 720;
 
   // Parameter-Räume
-  const rValues = linspace(1 / 6, 1 / 4, 5); // Windanteil
-  const vValues = linspace(20 / 3.6, 24 / 3.6, 5); // Gegenwind in m/s
-  const cValues = linspace(0.98, 1.05, 5); // Widerstandsbeiwert
-  const alphaValues = linspace(0.95, 1.1, 6); // mechanischer Korrekturfaktor
+  const rValues = linspace(1 / 6, 1 / 4, 3); // Windanteil
+  const vValues = linspace(20 / 3.6, 24 / 3.6, 3); // Gegenwind in m/s
+  const cValues = linspace(0.98, 1.05, 2); // Widerstandsbeiwert
+  const alphaValues = linspace(0.95, 1.1, 2); // mechanischer Korrekturfaktor
   const w = 1.225; // Luftdichte fix
-  const AValues = gender === "w" ? linspace(0.45, 0.52, 5) : linspace(0.54, 0.6, 5);
-  const mValues = gender === "w" ? linspace(55, 70, 5) : linspace(65, 80, 5);
+  const AValues = gender === "w" ? linspace(0.45, 0.52, 2) : linspace(0.54, 0.6, 2);
+  const mValues = gender === "w" ? linspace(55, 70, 2) : linspace(65, 80, 2);
 
   let xMin = Infinity;
   let xMax = -Infinity;
@@ -300,6 +300,7 @@ function calculateStrecke(strecke, gender) {
     streckeMax: xMax * 720
   };
 }
+
 
 
 
