@@ -129,57 +129,61 @@
     }
 
     function calculateStrecke(strecke, wind, gender) {
-      const wValues = [1.19, 1.25];
-      const CValues = [0.98, 1.05];
-      const alphaValues = [0.95, 1.1];
-      const AValues = gender === "w" ? [0.45, 0.52] : [0.54, 0.6];
-      const mValues = gender === "w" ? [55, 70] : [65, 80];
+  const wValues = [1.19, 1.25];
+  const CValues = [0.98, 1.05];
+  const alphaValues = [0.95, 1.1];
+  const AValues = gender === "w" ? [0.45, 0.52] : [0.54, 0.6];
+  const mValues = gender === "w" ? [55, 70] : [65, 80];
 
-      const b = wind / 3.6;
-      const c = 0.25 * strecke;
-      const d = 720;
-      const e = 0.75 * strecke;
+  const b = wind / 3.6;
+  const c = 0.25 * strecke;
+  const d = 720;
+  const e = 0.75 * strecke;
 
-      let xMin = Infinity;
-      let xMax = -Infinity;
+  let xMin = Infinity;
+  let xMax = -Infinity;
 
-      for (const w of wValues) {
-        for (const C of CValues) {
-          for (const A of AValues) {
-            for (const alpha of alphaValues) {
-              for (const m of mValues) {
-                const a = 0.5 * w * C * A;
-                const f = alpha * m;
+  for (const w of wValues) {
+    for (const C of CValues) {
+      for (const A of AValues) {
+        for (const alpha of alphaValues) {
+          for (const m of mValues) {
+            const a = 0.5 * w * C * A;
+            const f = alpha * m;
 
-                const expr = `${a} * (${b} + ${c} / (${d} - ${e} / x))^3 + ${f} * (${c} / (${d} - ${e} / x))^3 - (${a} * x^3 + ${f} * x)`;
+            // Rechenformel (kein Wind vs. Abschnitt mit Wind)
+            const expr = `${a} * (${b} + ${c} / (${d} - ${e} / x))^3 + ${f} * (${c} / (${d} - ${e} / x))^3 - (${a} * x^3 + ${f} * x)`;
 
-                try {
-                  const solutions = math.solve(expr, 'x');
-                  const realSolutions = solutions
-                    .map(sol => parseFloat(sol))
-                    .filter(sol => !isNaN(sol) && isFinite(sol));
+            try {
+              const solutions = math.solve(expr, 'x');
+              const realSolutions = solutions
+                .map(sol => parseFloat(sol))
+                .filter(sol => !isNaN(sol) && isFinite(sol) && sol > 0); // ✅ nur sinnvolle x
 
-                  for (const x of realSolutions) {
-                    if (x < xMin) xMin = x;
-                    if (x > xMax) xMax = x;
-                  }
-                } catch (err) {
-                  continue;
-                }
+              for (const x of realSolutions) {
+                if (x < xMin) xMin = x;
+                if (x > xMax) xMax = x;
               }
+            } catch (err) {
+              continue; // bei fehlerhaften Gleichungen weiter zur nächsten Kombination
             }
           }
         }
       }
-
-      if (xMin === Infinity || xMax === -Infinity) return { xMin: NaN, xMax: NaN };
-      return {
-        xMin: xMin,
-        xMax: xMax,
-        streckeMin: xMin * 720,
-        streckeMax: xMax * 720
-      };
     }
+  }
+
+  if (xMin === Infinity || xMax === -Infinity) {
+    return { xMin: NaN, xMax: NaN };
+  }
+
+  return {
+    xMin: xMin,
+    xMax: xMax,
+    streckeMin: xMin * 720,
+    streckeMax: xMax * 720
+  };
+}
 
     function updateResult() {
       const strecke = parseFloat(streckeInput.value);
