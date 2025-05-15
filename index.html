@@ -1,54 +1,223 @@
-function calculateStrecke(strecke, wind, gender) {
-  const wValues = [1.19, 1.25];
-  const CValues = [0.98, 1.05];
-  const alphaValues = [0.95, 1.1];
-  const AValues = gender === "w" ? [0.45, 0.52] : [0.54, 0.6];
-  const mValues = gender === "w" ? [55, 70] : [65, 80];
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Streckenrechner</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      max-width: 700px;
+      margin: auto;
+    }
 
-  const b = wind / 3.6;
-  const c = 0.25 * strecke;
-  const d = 720;
-  const e = 0.75 * strecke;
+    h1 {
+      text-align: center;
+    }
 
-  let xMin = Infinity;
-  let xMax = -Infinity;
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px 10px;
+      align-items: center;
+    }
 
-  for (const w of wValues) {
-    for (const C of CValues) {
-      for (const A of AValues) {
-        for (const alpha of alphaValues) {
-          for (const m of mValues) {
-            const a = 0.5 * w * C * A;
-            const f = alpha * m;
+    label {
+      font-weight: bold;
+    }
 
-            const expr = `${a} * (${b} + ${c} / (${d} - ${e} / x))^3 + ${f} * (${c} / (${d} - ${e} / x))^3 - (${a} * x^3 + ${f} * x)`;
+    input[type="number"],
+    input[type="text"],
+    select {
+      width: 100%;
+      padding: 5px;
+      font-size: 1rem;
+    }
 
-            try {
-              const solutions = math.solve(expr, 'x');
-              const realSolutions = solutions
-                .map(sol => parseFloat(sol))
-                .filter(sol => !isNaN(sol) && isFinite(sol));
+    .unit {
+      margin-left: 5px;
+    }
 
-              for (const x of realSolutions) {
-                if (x < xMin) xMin = x;
-                if (x > xMax) xMax = x;
+    .radio-group {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .result-field {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .gender-group {
+      grid-column: 1 / -1;
+    }
+
+    .bar-container {
+      grid-column: 1 / -1;
+      margin-top: 20px;
+    }
+
+    .bar {
+      height: 24px;
+      margin-top: 5px;
+      background-color: steelblue;
+      color: white;
+      text-align: right;
+      padding-right: 5px;
+      border-radius: 5px;
+      line-height: 24px;
+    }
+
+    .bar.min {
+      background-color: seagreen;
+    }
+
+    .bar.max {
+      background-color: crimson;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.1/math.min.js"></script>
+</head>
+<body>
+  <h1>Berechnung der tatsächlichen Strecke</h1>
+
+  <div class="form-grid">
+    <label for="strecke">Gelaufene Strecke:</label>
+    <div>
+      <input type="number" id="strecke" value="0" min="0"> <span class="unit">m</span>
+    </div>
+
+    <label for="wind">Gegenwindannahme:</label>
+    <div>
+      <select id="wind"></select> <span class="unit">km/h</span>
+    </div>
+
+    <div class="gender-group">
+      <label>Geschlecht:</label>
+      <div class="radio-group">
+        <label><input type="radio" name="gender" value="m" checked> männlich</label>
+        <label><input type="radio" name="gender" value="w"> weiblich</label>
+      </div>
+    </div>
+
+    <div class="result-field">
+      <label for="result">Tatsächliche Strecke:</label>
+      <input type="text" id="result" readonly> <span class="unit">m</span>
+    </div>
+
+    <div class="bar-container">
+      <div id="barMin" class="bar min" style="width: 0">Min</div>
+      <div id="barMax" class="bar max" style="width: 0">Max</div>
+    </div>
+  </div>
+
+  <script>
+    const streckeInput = document.getElementById("strecke");
+    const windInput = document.getElementById("wind");
+    const resultInput = document.getElementById("result");
+    const barMin = document.getElementById("barMin");
+    const barMax = document.getElementById("barMax");
+
+    for (let i = 22; i <= 50; i++) {
+      const opt = document.createElement("option");
+      opt.value = i;
+      opt.textContent = `${i}`;
+      windInput.appendChild(opt);
+    }
+
+    function calculateStrecke(strecke, wind, gender) {
+      const wValues = [1.19, 1.25];
+      const CValues = [0.98, 1.05];
+      const alphaValues = [0.95, 1.1];
+      const AValues = gender === "w" ? [0.45, 0.52] : [0.54, 0.6];
+      const mValues = gender === "w" ? [55, 70] : [65, 80];
+
+      const b = wind / 3.6;
+      const c = 0.25 * strecke;
+      const d = 720;
+      const e = 0.75 * strecke;
+
+      let xMin = Infinity;
+      let xMax = -Infinity;
+
+      for (const w of wValues) {
+        for (const C of CValues) {
+          for (const A of AValues) {
+            for (const alpha of alphaValues) {
+              for (const m of mValues) {
+                const a = 0.5 * w * C * A;
+                const f = alpha * m;
+
+                const expr = `${a} * (${b} + ${c} / (${d} - ${e} / x))^3 + ${f} * (${c} / (${d} - ${e} / x))^3 - (${a} * x^3 + ${f} * x)`;
+
+                try {
+                  const solutions = math.solve(expr, 'x');
+                  const realSolutions = solutions
+                    .map(sol => parseFloat(sol))
+                    .filter(sol => !isNaN(sol) && isFinite(sol));
+
+                  for (const x of realSolutions) {
+                    if (x < xMin) xMin = x;
+                    if (x > xMax) xMax = x;
+                  }
+                } catch (err) {
+                  continue;
+                }
               }
-            } catch (err) {
-              // skip invalid equations
-              continue;
             }
           }
         }
       }
+
+      if (xMin === Infinity || xMax === -Infinity) return { xMin: NaN, xMax: NaN };
+      return {
+        xMin: xMin,
+        xMax: xMax,
+        streckeMin: xMin * 720,
+        streckeMax: xMax * 720
+      };
     }
-  }
 
-  if (xMin === Infinity || xMax === -Infinity) return { xMin: NaN, xMax: NaN };
+    function updateResult() {
+      const strecke = parseFloat(streckeInput.value);
+      const wind = parseInt(windInput.value);
+      const gender = document.querySelector('input[name="gender"]:checked').value;
 
-  return {
-    xMin: xMin,
-    xMax: xMax,
-    streckeMin: xMin * 720,
-    streckeMax: xMax * 720
-  };
-}
+      if (!isNaN(strecke) && !isNaN(wind)) {
+        const result = calculateStrecke(strecke, wind, gender);
+        if (isNaN(result.xMin)) {
+          resultInput.value = "Keine Lösung";
+          barMin.style.width = "0";
+          barMax.style.width = "0";
+        } else {
+          resultInput.value = `Min: ${result.streckeMin.toFixed(2)} m, Max: ${result.streckeMax.toFixed(2)} m`;
+
+          const maxWidth = 100; // max 100% width
+          const scale = Math.max(result.streckeMax, 1); // avoid division by 0
+          const widthMin = (result.streckeMin / scale) * maxWidth;
+          const widthMax = (result.streckeMax / scale) * maxWidth;
+
+          barMin.style.width = `${widthMin}%`;
+          barMin.textContent = `Min: ${result.streckeMin.toFixed(0)} m`;
+
+          barMax.style.width = `${widthMax}%`;
+          barMax.textContent = `Max: ${result.streckeMax.toFixed(0)} m`;
+        }
+      } else {
+        resultInput.value = "";
+        barMin.style.width = "0";
+        barMax.style.width = "0";
+      }
+    }
+
+    streckeInput.addEventListener("input", updateResult);
+    windInput.addEventListener("change", updateResult);
+    document.querySelectorAll('input[name="gender"]').forEach(radio => {
+      radio.addEventListener("change", updateResult);
+    });
+  </script>
+</body>
+</html>
