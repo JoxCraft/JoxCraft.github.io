@@ -222,30 +222,36 @@ v' = \frac{r \cdot s}{720 - \frac{(1 - r) \cdot s_{\text{gesamt}}}{v_{\text{wind
     const barMin = document.getElementById("barMin");
     const barMax = document.getElementById("barMax");
 
-    function calculateStrecke(strecke, gender) {
-  const wValues = [1.19, 1.25];
-  const CValues = [0.98, 1.05];
-  const alphaValues = [0.95, 1.1];
-  const AValues = gender === "w" ? [0.45, 0.52] : [0.54, 0.6];
-  const mValues = gender === "w" ? [55, 70] : [65, 80];
-  const rValues = [1 / 6, 1 / 4]; // Windanteil der Strecke
+    function linspace(start, end, num) {
+  const step = (end - start) / (num - 1);
+  return Array.from({ length: num }, (_, i) => start + i * step);
+}
 
+function calculateStrecke(strecke, gender) {
   const s = strecke;
-const vValues = [20 / 3.6, 24 / 3.6]; // Intervall für Gegenwindgeschwindigkeit (5.56–6.67 m/s)
   const t = 720;
+
+  // Parameter-Räume
+  const rValues = linspace(1 / 6, 1 / 4, 3); // Windanteil
+  const vValues = linspace(20 / 3.6, 24 / 3.6, 3); // Gegenwind in m/s
+  const cValues = linspace(0.98, 1.05, 2); // Widerstandsbeiwert
+  const alphaValues = linspace(0.95, 1.1, 2); // mechanischer Korrekturfaktor
+  const w = 1.225; // Luftdichte fix
+  const AValues = gender === "w" ? linspace(0.45, 0.52, 2) : linspace(0.54, 0.6, 2);
+  const mValues = gender === "w" ? linspace(55, 70, 2) : linspace(65, 80, 2);
 
   let xMin = Infinity;
   let xMax = -Infinity;
 
   const xStart = 0.5;
   const xEnd = Math.max(10, s / 50);
-for (const v of vValues) {
+
   for (const r of rValues) {
     const s_wind = r * s;
     const s_windlos = (1 - r) * s;
 
-    for (const w of wValues) {
-      for (const C of CValues) {
+    for (const v of vValues) {
+      for (const C of cValues) {
         for (const A of AValues) {
           for (const alpha of alphaValues) {
             for (const m of mValues) {
@@ -263,13 +269,13 @@ for (const v of vValues) {
                 return left - right;
               }
 
-              for (let x = xStart; x <= xEnd; x += 0.01) {
+              for (let x = xStart; x <= xEnd; x += 0.02) {
                 const y1 = func(x);
-                const y2 = func(x + 0.01);
-
+                const y2 = func(x + 0.02);
                 if (isNaN(y1) || isNaN(y2)) continue;
+
                 if (y1 * y2 < 0) {
-                  const root = x - y1 * (0.01 / (y2 - y1));
+                  const root = x - y1 * (0.02 / (y2 - y1)); // lineare Interpolation
                   if (root > 0) {
                     if (root < xMin) xMin = root;
                     if (root > xMax) xMax = root;
@@ -281,7 +287,7 @@ for (const v of vValues) {
         }
       }
     }
-  }}
+  }
 
   if (xMin === Infinity || xMax === -Infinity) {
     return { xMin: NaN, xMax: NaN };
@@ -294,6 +300,7 @@ for (const v of vValues) {
     streckeMax: xMax * 720
   };
 }
+
 
 
     function updateResult() {
