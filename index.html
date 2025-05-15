@@ -160,44 +160,52 @@
     <span class="close" onclick="document.getElementById('infoModal').style.display='none'">&times;</span>
     <h2>Hintergrund & Annahmen</h2>
 
-    <p>Diese Berechnung basiert auf einem Lauf mit konstanter Leistung über 720 Sekunden. Der erste Abschnitt (1/4 der Strecke) wurde gegen den Wind gelaufen (22 km/h Gegenwind), die restlichen 3/4 ohne Wind.</p>
+    <h3>Gegebene Gleichungen:</h3>
 
-    <h3>Formeln:</h3>
-    <p>1. Zeitaufteilung:</p>
     <p>\[
     t_{\text{wind}} + t_{\text{windlos}} = 720\,\text{s}
     \]</p>
 
-    <p>2. Wind-Streckenverhältnis:</p>
+    <p>Bewegungsgesetz</p>
     <p>\[
-    t_{\text{wind}} \cdot v_{\text{wind}} = \frac{1}{4} \cdot s_{\text{gesamt}}
+    t_{\text{wind}} \cdot v_{\text{wind}} = r \cdot s_{\text{gesamt}}
     \]</p>
 
-    <p>3. Windlose Strecke:</p>
+    <p>Bewegungsgesetz</p>
     <p>\[
-    t_{\text{windlos}} \cdot v_{\text{windlos}} = \frac{3}{4} \cdot s_{\text{gesamt}}
+t_{\text{windlos}} \cdot v_{\text{windlos}} = (1 - r) \cdot s_{\text{gesamt}}
     \]</p>
 
-    <p>4. Leistungskonstanz:</p>
+    <p>Konstante Leistung beim Laufen</p>
     <p>\[
-    P(v_{\text{wind}}, v_{\text{gegenwind}}) = P(v_{\text{windlos}})
+    P(v_{\text{wind}}) = P(v_{\text{windlos}})
     \]</p>
 
-    <p>Eingesetzt:</p>
+    <p>Finale Gleichung des Gleichungssystems</p>
+<p>\[
+\frac{1}{2} \rho c_d A (v_{\text{gegenwind}} + v')^2 \cdot v' + \alpha m v' = \frac{1}{2} \rho c_d A v_{\text{windlos}}^3 + \alpha m v_{\text{windlos}},
+\quad \text{mit} \quad v' = \frac{r \cdot s}{720 - \frac{(1 - r) \cdot s}{x}},\quad r \in \left[\frac{1}{6}, \frac{1}{4}\right]
+\]</p>
+
+    <p>Endergebnis</p>
     <p>\[
-    \frac{1}{2} \rho C_d A (v + v_{\text{eff}})^2 \cdot v_{\text{eff}} + \alpha m v_{\text{eff}} = \frac{1}{2} \rho C_d A v^3 + \alpha m v
+    s_{windlos} = v_{windlos} * 720\,\text{s}
     \]</p>
 
     <h3>Erklärung der Symbole:</h3>
     <table style="width:100%; font-size: 0.95rem;">
-      <tr><td>\( \rho \)</td><td>Luftdichte (ca. 1.2–1.3 kg/m³)</td></tr>
-      <tr><td>\( C_d \)</td><td>Widerstandsbeiwert (dimensionslos, ca. 0.98–1.05)</td></tr>
-      <tr><td>\( A \)</td><td>Stirnfläche der Person in m² (abhängig vom Körperbau)</td></tr>
-      <tr><td>\( v \)</td><td>Windlose Zielgeschwindigkeit</td></tr>
-      <tr><td>\( v_{\text{eff}} \)</td><td>effektive Geschwindigkeit im Windabschnitt</td></tr>
-      <tr><td>\( v + v_{\text{eff}} \)</td><td>relative Luftgeschwindigkeit gegen den Wind</td></tr>
-      <tr><td>\( m \)</td><td>Körpermasse in kg</td></tr>
-      <tr><td>\( \alpha \)</td><td>metabolischer Widerstandskoeffizient (ca. 0.95–1.1)</td></tr>
+      <tr><td>\( r \)</td><td>Anteil der Strecke mit Wind (1/6 - 1/4)</td></tr>
+      <tr><td>\( \rho \)</td><td>Luftdichte (1.2–1.3 kg/m³)</td></tr>
+      <tr><td>\( c_d \)</td><td>Strömungswiderstandskoeffizient (0.98–1.05)</td></tr>
+      <tr><td>\( A \)</td><td>Stirnfläche (Frau: 0.45-0.52 m²; Mann: 0.54-0.6 m²)</td></tr>
+      <tr><td>\(v_{\text{gegenwind}} \)</td><td>Gegenwindgeschwindigkeit (20-24 km/h)</td></tr>
+      <tr><td>\( m \)</td><td>Körpermasse (Frau: 55-70 kg; Mann: 65-80 kg)</td></tr>
+      <tr><td>\( \alpha \)</td><td>Koeffizient der Mechanischen Leistung (https://www.sciencedirect.com/science/article/abs/pii/S0021929099001876)  (0.95–1.1 m/s²)</td></tr>
+      <tr><td>\(v_{\text{wind}} \)</td><td>Laufgeschwindigkeit bei Wind</td></tr>
+      <tr><td>\( v_{\text{windlos}} \)</td><td>Windlose Laufgeschwindigkeit</td></tr>
+      <tr><td>\(t_{\text{wind}} \)</td><td>Zeit auf der Windlosen Strecke</td></tr>
+      <tr><td>\( t_{\text{windlos}}  \)</td><td>Zeit auf der Strecke mit Wind</td></tr>
+      <tr><td>\( s_{\text{windlos}}  \)</td><td>Strecke gäbe es keinen Wind</td></tr>
     </table>
   </div>
 </div>
@@ -210,53 +218,56 @@
     const barMax = document.getElementById("barMax");
 
     function calculateStrecke(strecke, gender) {
-      const wValues = [1.19, 1.25];
-      const CValues = [0.98, 1.05];
-      const alphaValues = [0.95, 1.1];
-      const AValues = gender === "w" ? [0.45, 0.52] : [0.54, 0.6];
-      const mValues = gender === "w" ? [55, 70] : [65, 80];
+  const wValues = [1.19, 1.25];
+  const CValues = [0.98, 1.05];
+  const alphaValues = [0.95, 1.1];
+  const AValues = gender === "w" ? [0.45, 0.52] : [0.54, 0.6];
+  const mValues = gender === "w" ? [55, 70] : [65, 80];
+  const rValues = [1 / 6, 1 / 4]; // Windanteil der Strecke
 
-      const s = strecke;
-      const v = 22 / 3.6;
-      const t = 720;
+  const s = strecke;
+const vValues = [20 / 3.6, 24 / 3.6]; // Intervall für Gegenwindgeschwindigkeit (5.56–6.67 m/s)
+  const t = 720;
 
-      let xMin = Infinity;
-      let xMax = -Infinity;
+  let xMin = Infinity;
+  let xMax = -Infinity;
 
-      const xStart = 0.5;
-      const xEnd = Math.max(10, s / 50); // Dynamischer Bereich für große s
+  const xStart = 0.5;
+  const xEnd = Math.max(10, s / 50);
+for (const v of vValues) {
+  for (const r of rValues) {
+    const s_wind = r * s;
+    const s_windlos = (1 - r) * s;
 
-      for (const w of wValues) {
-        for (const C of CValues) {
-          for (const A of AValues) {
-            for (const alpha of alphaValues) {
-              for (const m of mValues) {
-                const a = 0.5 * w * C * A;
-                const f = alpha * m;
+    for (const w of wValues) {
+      for (const C of CValues) {
+        for (const A of AValues) {
+          for (const alpha of alphaValues) {
+            for (const m of mValues) {
+              const a = 0.5 * w * C * A;
+              const f = alpha * m;
 
-                function func(x) {
-                  if (x <= 0) return NaN;
-                  const denom = t - (3 * s) / (4 * x);
-                  if (denom <= 0) return NaN;
+              function func(x) {
+                if (x <= 0) return NaN;
+                const denom = t - s_windlos / x;
+                if (denom <= 0) return NaN;
 
-                  const s1 = 0.25 * s;
-                  const v_eff = s1 / denom;
-                  const left = a * Math.pow(v + v_eff, 2) * v_eff + f * v_eff;
-                  const right = a * Math.pow(x, 3) + f * x;
-                  return left - right;
-                }
+                const v_eff = s_wind / denom;
+                const left = a * Math.pow(v + v_eff, 2) * v_eff + f * v_eff;
+                const right = a * Math.pow(x, 3) + f * x;
+                return left - right;
+              }
 
-                for (let x = xStart; x <= xEnd; x += 0.01) {
-                  const y1 = func(x);
-                  const y2 = func(x + 0.01);
+              for (let x = xStart; x <= xEnd; x += 0.01) {
+                const y1 = func(x);
+                const y2 = func(x + 0.01);
 
-                  if (isNaN(y1) || isNaN(y2)) continue;
-                  if (y1 * y2 < 0) {
-                    const root = x - y1 * (0.01 / (y2 - y1));
-                    if (root > 0) {
-                      if (root < xMin) xMin = root;
-                      if (root > xMax) xMax = root;
-                    }
+                if (isNaN(y1) || isNaN(y2)) continue;
+                if (y1 * y2 < 0) {
+                  const root = x - y1 * (0.01 / (y2 - y1));
+                  if (root > 0) {
+                    if (root < xMin) xMin = root;
+                    if (root > xMax) xMax = root;
                   }
                 }
               }
@@ -264,18 +275,21 @@
           }
         }
       }
-
-      if (xMin === Infinity || xMax === -Infinity) {
-        return { xMin: NaN, xMax: NaN };
-      }
-
-      return {
-        xMin: xMin,
-        xMax: xMax,
-        streckeMin: xMin * 720,
-        streckeMax: xMax * 720
-      };
     }
+  }
+
+  if (xMin === Infinity || xMax === -Infinity) {
+    return { xMin: NaN, xMax: NaN };
+  }
+
+  return {
+    xMin: xMin,
+    xMax: xMax,
+    streckeMin: xMin * 720,
+    streckeMax: xMax * 720
+  };
+}
+
 
     function updateResult() {
       const strecke = parseFloat(streckeInput.value);
