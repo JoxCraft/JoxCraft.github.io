@@ -1,66 +1,54 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-  <meta charset="UTF-8">
-  <title>Streckenrechner</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      padding: 20px;
-    }
-    label, select, input {
-      display: block;
-      margin-top: 10px;
-      font-size: 1rem;
-    }
-    .unit {
-      margin-left: 5px;
-    }
-  </style>
-</head>
-<body>
-  <h1>Berechnung der tatsächlichen Strecke</h1>
+function calculateStrecke(strecke, wind, gender) {
+  const wValues = [1.19, 1.25];
+  const CValues = [0.98, 1.05];
+  const alphaValues = [0.95, 1.1];
+  const AValues = gender === "w" ? [0.45, 0.52] : [0.54, 0.6];
+  const mValues = gender === "w" ? [55, 70] : [65, 80];
 
-  <label for="strecke">Gelaufene Strecke:</label>
-  <input type="number" id="strecke" value="0" min="0"> <span class="unit">m</span>
+  const b = wind / 3.6;
+  const c = 0.25 * strecke;
+  const d = 720;
+  const e = 0.75 * strecke;
 
-  <label for="wind">Gegenwindannahme:</label>
-  <select id="wind">
-    <!-- Options from 22 to 50 -->
-    <script>
-      for (let i = 22; i <= 50; i++) {
-        document.write(`<option value="${i}">${i} km/h</option>`);
-      }
-    </script>
-  </select>
+  let xMin = Infinity;
+  let xMax = -Infinity;
 
-  <label for="result">Tatsächliche Strecke:</label>
-  <input type="text" id="result" readonly> <span class="unit">m</span>
+  for (const w of wValues) {
+    for (const C of CValues) {
+      for (const A of AValues) {
+        for (const alpha of alphaValues) {
+          for (const m of mValues) {
+            const a = 0.5 * w * C * A;
+            const f = alpha * m;
 
-  <script>
-    const streckeInput = document.getElementById("strecke");
-    const windInput = document.getElementById("wind");
-    const resultInput = document.getElementById("result");
+            const expr = `${a} * (${b} + ${c} / (${d} - ${e} / x))^3 + ${f} * (${c} / (${d} - ${e} / x))^3 - (${a} * x^3 + ${f} * x)`;
 
-    function calculateStrecke(strecke, wind) {
-      // Beispielhafte Funktion: tatsächliche Strecke = gelaufene Strecke + wind * 2
-      // Ersetze dies durch deine tatsächliche Berechnungslogik
-      return strecke + wind * 2;
-    }
+            try {
+              const solutions = math.solve(expr, 'x');
+              const realSolutions = solutions
+                .map(sol => parseFloat(sol))
+                .filter(sol => !isNaN(sol) && isFinite(sol));
 
-    function updateResult() {
-      const strecke = parseFloat(streckeInput.value);
-      const wind = parseInt(windInput.value);
-      if (!isNaN(strecke) && !isNaN(wind)) {
-        const result = calculateStrecke(strecke, wind);
-        resultInput.value = result.toFixed(2);
-      } else {
-        resultInput.value = "";
+              for (const x of realSolutions) {
+                if (x < xMin) xMin = x;
+                if (x > xMax) xMax = x;
+              }
+            } catch (err) {
+              // skip invalid equations
+              continue;
+            }
+          }
+        }
       }
     }
+  }
 
-    streckeInput.addEventListener("input", updateResult);
-    windInput.addEventListener("change", updateResult);
-  </script>
-</body>
-</html>
+  if (xMin === Infinity || xMax === -Infinity) return { xMin: NaN, xMax: NaN };
+
+  return {
+    xMin: xMin,
+    xMax: xMax,
+    streckeMin: xMin * 720,
+    streckeMax: xMax * 720
+  };
+}
