@@ -87,7 +87,7 @@
   <div class="form-grid">
     <label for="strecke">Gelaufene Strecke:</label>
     <div>
-      <input type="number" id="strecke" value="0" min="0"> <span class="unit">m</span>
+      <input type="number" id="strecke" value="1000" min="0"> <span class="unit">m</span>
     </div>
 
     <label for="wind">Gegenwindannahme:</label>
@@ -129,75 +129,68 @@
     }
 
     function calculateStrecke(strecke, wind, gender) {
-  const wValues = [1.19, 1.25];
-  const CValues = [0.98, 1.05];
-  const alphaValues = [0.95, 1.1];
-  const AValues = gender === "w" ? [0.45, 0.52] : [0.54, 0.6];
-  const mValues = gender === "w" ? [55, 70] : [65, 80];
+      const wValues = [1.19, 1.25];
+      const CValues = [0.98, 1.05];
+      const alphaValues = [0.95, 1.1];
+      const AValues = gender === "w" ? [0.45, 0.52] : [0.54, 0.6];
+      const mValues = gender === "w" ? [55, 70] : [65, 80];
 
-  const b = wind / 3.6;
-  const c = 0.25 * strecke;
-  const d = 720;
-  const e = 0.75 * strecke;
+      const s = strecke;
+      const v = wind / 3.6; // in m/s
+      const t = 720; // Sekunden
 
-  let xMin = Infinity;
-  let xMax = -Infinity;
+      let xMin = Infinity;
+      let xMax = -Infinity;
 
-  for (const w of wValues) {
-    for (const C of CValues) {
-      for (const A of AValues) {
-        for (const alpha of alphaValues) {
-          for (const m of mValues) {
-            const a = 0.5 * w * C * A;
-            const f = alpha * m;
+      for (const w of wValues) {
+        for (const C of CValues) {
+          for (const A of AValues) {
+            for (const alpha of alphaValues) {
+              for (const m of mValues) {
+                const a = 0.5 * w * C * A;
+                const f = alpha * m;
 
-            // Funktion f(x): linke Seite - rechte Seite
-            function func(x) {
-              if (x <= 0 || (d - e / x) <= 0) return NaN;
-              try {
-                const left =
-                  a * Math.pow(b + c / (d - e / x), 3) +
-                  f * (c / (d - e / x);
-                const right = a * Math.pow(x, 3) + f * x;
-                return left - right;
-              } catch {
-                return NaN;
-              }
-            }
+                function func(x) {
+                  if (x <= 0) return NaN;
+                  const denom = t - (3 * s) / (4 * x);
+                  if (denom <= 0) return NaN;
 
-            // Suche Nullstelle: f(x) = 0 mit Sampling
-            for (let x = 0.5; x <= 10; x += 0.01) {
-              const y1 = func(x);
-              const y2 = func(x + 0.01);
+                  const v_eff = 0.25 * s / denom;
+                  const left = a * Math.pow(v + v_eff, 3) + f * v_eff;
+                  const right = a * Math.pow(x, 3) + f * x;
+                  return left - right;
+                }
 
-              if (isNaN(y1) || isNaN(y2)) continue;
-              if (y1 * y2 < 0) {
-                // einfache lineare Interpolation der Nullstelle
-                const root = x - y1 * (0.01 / (y2 - y1));
-                if (root > 0) {
-                  if (root < xMin) xMin = root;
-                  if (root > xMax) xMax = root;
+                for (let x = 0.5; x <= 10; x += 0.01) {
+                  const y1 = func(x);
+                  const y2 = func(x + 0.01);
+
+                  if (isNaN(y1) || isNaN(y2)) continue;
+                  if (y1 * y2 < 0) {
+                    const root = x - y1 * (0.01 / (y2 - y1)); // lineare Interpolation
+                    if (root > 0) {
+                      if (root < xMin) xMin = root;
+                      if (root > xMax) xMax = root;
+                    }
+                  }
                 }
               }
             }
           }
         }
       }
+
+      if (xMin === Infinity || xMax === -Infinity) {
+        return { xMin: NaN, xMax: NaN };
+      }
+
+      return {
+        xMin: xMin,
+        xMax: xMax,
+        streckeMin: xMin * 720,
+        streckeMax: xMax * 720
+      };
     }
-  }
-
-  if (xMin === Infinity || xMax === -Infinity) {
-    return { xMin: NaN, xMax: NaN };
-  }
-
-  return {
-    xMin: xMin,
-    xMax: xMax,
-    streckeMin: xMin * 720,
-    streckeMax: xMax * 720
-  };
-}
-
 
     function updateResult() {
       const strecke = parseFloat(streckeInput.value);
@@ -213,8 +206,8 @@
         } else {
           resultInput.value = `Min: ${result.streckeMin.toFixed(2)} m, Max: ${result.streckeMax.toFixed(2)} m`;
 
-          const maxWidth = 100; // max 100% width
-          const scale = Math.max(result.streckeMax, 1); // avoid division by 0
+          const maxWidth = 100;
+          const scale = Math.max(result.streckeMax, 1);
           const widthMin = (result.streckeMin / scale) * maxWidth;
           const widthMax = (result.streckeMax / scale) * maxWidth;
 
@@ -236,6 +229,9 @@
     document.querySelectorAll('input[name="gender"]').forEach(radio => {
       radio.addEventListener("change", updateResult);
     });
+
+    // Initial Update
+    updateResult();
   </script>
 </body>
 </html>
