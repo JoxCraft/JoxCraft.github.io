@@ -1,2 +1,0 @@
-# JoxCraft.github.io
-website
