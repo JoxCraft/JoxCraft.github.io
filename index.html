@@ -183,8 +183,13 @@ t_{\text{windlos}} \cdot v_{\text{windlos}} = (1 - r) \cdot s_{\text{gesamt}}
 
     <p>Finale Gleichung des Gleichungssystems</p>
 <p>\[
-\frac{1}{2} \rho c_d A (v_{\text{gegenwind}} + v')^2 \cdot v' + \alpha m v' = \frac{1}{2} \rho c_d A v_{\text{windlos}}^3 + \alpha m v_{\text{windlos}},
-\quad \text{mit} \quad v' = \frac{r \cdot s}{720 - \frac{(1 - r) \cdot s}{x}},\quad r \in \left[\frac{1}{6}, \frac{1}{4}\right]
+\frac{1}{2} \rho c_d A (v_{\text{gegenwind}} + v')^2 \cdot v' + \alpha m v' = \frac{1}{2} \rho c_d A v_{\text{windlos}}^3 + \alpha m v_{\text{windlos}}\]
+
+<p>mit:</p>
+
+\[
+v' = \frac{r \cdot s}{720 - \frac{(1 - r) \cdot s}{x}},\quad r \in \left[\frac{1}{6}, \frac{1}{4}\right]
+
 \]</p>
 
     <p>Endergebnis</p>
@@ -276,7 +281,7 @@ for (const v of vValues) {
         }
       }
     }
-  }
+  }}
 
   if (xMin === Infinity || xMax === -Infinity) {
     return { xMin: NaN, xMax: NaN };
