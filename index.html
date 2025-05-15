@@ -151,21 +151,34 @@
             const a = 0.5 * w * C * A;
             const f = alpha * m;
 
-            // Rechenformel (kein Wind vs. Abschnitt mit Wind)
-            const expr = `${a} * (${b} + ${c} / (${d} - ${e} / x))^3 + ${f} * (${c} / (${d} - ${e} / x))^3 - (${a} * x^3 + ${f} * x)`;
-
-            try {
-              const solutions = math.solve(expr, 'x');
-              const realSolutions = solutions
-                .map(sol => parseFloat(sol))
-                .filter(sol => !isNaN(sol) && isFinite(sol) && sol > 0); // ✅ nur sinnvolle x
-
-              for (const x of realSolutions) {
-                if (x < xMin) xMin = x;
-                if (x > xMax) xMax = x;
+            // Funktion f(x): linke Seite - rechte Seite
+            function func(x) {
+              if (x <= 0 || (d - e / x) <= 0) return NaN;
+              try {
+                const left =
+                  a * Math.pow(b + c / (d - e / x), 3) +
+                  f * Math.pow(c / (d - e / x), 3);
+                const right = a * Math.pow(x, 3) + f * x;
+                return left - right;
+              } catch {
+                return NaN;
               }
-            } catch (err) {
-              continue; // bei fehlerhaften Gleichungen weiter zur nächsten Kombination
+            }
+
+            // Suche Nullstelle: f(x) = 0 mit Sampling
+            for (let x = 0.5; x <= 10; x += 0.01) {
+              const y1 = func(x);
+              const y2 = func(x + 0.01);
+
+              if (isNaN(y1) || isNaN(y2)) continue;
+              if (y1 * y2 < 0) {
+                // einfache lineare Interpolation der Nullstelle
+                const root = x - y1 * (0.01 / (y2 - y1));
+                if (root > 0) {
+                  if (root < xMin) xMin = root;
+                  if (root > xMax) xMax = root;
+                }
+              }
             }
           }
         }
@@ -184,6 +197,7 @@
     streckeMax: xMax * 720
   };
 }
+
 
     function updateResult() {
       const strecke = parseFloat(streckeInput.value);
