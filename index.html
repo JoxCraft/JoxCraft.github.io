@@ -1,34 +1,34 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <!-- MathJax für LaTeX-Formeln -->
+  <meta charset="UTF-8">
+  <title>Streckenrechner</title>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
   <script>
     window.MathJax = {
       tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
       svg: { fontCache: 'global' }
     };
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Streckenrechner</title>
   <style>
     body {
       font-family: sans-serif;
-      padding: 20px;
-      max-width: 700px;
+      padding: 40px;
+      max-width: 900px;
       margin: auto;
     }
 
     h1 {
       text-align: center;
+      margin-bottom: 40px;
     }
 
     .form-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 15px 10px;
+      gap: 25px 20px;
       align-items: center;
+      padding: 20px;
     }
 
     label {
@@ -38,17 +38,17 @@
     input[type="number"],
     input[type="text"] {
       width: 100%;
-      padding: 5px;
+      padding: 8px;
       font-size: 1rem;
     }
 
     .unit {
-      margin-left: 5px;
+      margin-left: 8px;
     }
 
     .radio-group {
       display: flex;
-      gap: 10px;
+      gap: 20px;
       align-items: center;
     }
 
@@ -56,7 +56,7 @@
       grid-column: 1 / -1;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
     }
 
     .gender-group {
@@ -65,18 +65,18 @@
 
     .bar-container {
       grid-column: 1 / -1;
-      margin-top: 20px;
+      margin-top: 30px;
     }
 
     .bar {
-      height: 24px;
-      margin-top: 5px;
+      height: 28px;
+      margin-top: 10px;
       background-color: steelblue;
       color: white;
       text-align: right;
-      padding-right: 5px;
-      border-radius: 5px;
-      line-height: 24px;
+      padding-right: 10px;
+      border-radius: 6px;
+      line-height: 28px;
     }
 
     .bar.min {
@@ -89,9 +89,9 @@
 
     .info-button {
       position: absolute;
-      top: 20px;
-      right: 20px;
-      font-size: 24px;
+      top: 30px;
+      right: 30px;
+      font-size: 26px;
       cursor: pointer;
       background: none;
       border: none;
@@ -105,19 +105,19 @@
       display: none;
       justify-content: center;
       align-items: center;
-      padding: 10px;
+      padding: 40px;
       box-sizing: border-box;
     }
 
     .modal-content {
       background: white;
-      padding: 20px;
-      max-height: 90vh;
+      max-width: 100%;
+      max-height: 100%;
       overflow-y: auto;
-      width: 100%;
-      max-width: 600px;
-      border-radius: 10px;
+      padding: 40px;
+      border-radius: 14px;
       position: relative;
+      box-sizing: border-box;
     }
 
     .modal-content h2 {
@@ -126,11 +126,33 @@
 
     .close {
       position: absolute;
-      top: 10px;
-      right: 15px;
-      font-size: 1.5rem;
+      top: 20px;
+      right: 30px;
+      font-size: 1.8rem;
       font-weight: bold;
       cursor: pointer;
+      color: #555;
+    }
+
+    .close:hover {
+      color: black;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
+    }
+
+    table td {
+      padding: 8px 10px;
+      vertical-align: top;
+    }
+
+    @media (max-width: 600px) {
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.1/math.min.js"></script>
@@ -171,39 +193,31 @@
       <h2>Hintergrund & Annahmen</h2>
 
       <h3>Gegebene Gleichungen:</h3>
-
       <p>Zeit des Cooper-Laufs von 12min = 720s</p>
-
       <p>\[
       t_{\text{wind}} + t_{\text{windlos}} = 720\,\text{s}
       \]</p>
-
       <p>\[
       t_{\text{wind}} \cdot v_{\text{wind}} = r \cdot s_{\text{gesamt}}
       \]</p>
-
       <p>\[
       t_{\text{windlos}} \cdot v_{\text{windlos}} = (1 - r) \cdot s_{\text{gesamt}}
       \]</p>
-
       <p>\[
       P(v_{\text{wind}}) = P(v_{\text{windlos}})
       \]</p>
-
       <p>\[
       \frac{1}{2} \rho c_d A (v_{\text{gegenwind}} + v')^2 \cdot v' + \alpha m v' = \frac{1}{2} \rho c_d A v_{\text{windlos}}^3 + \alpha m v_{\text{windlos}}
       \]</p>
-
       <p>\[
-      v' = \frac{r \cdot s}{720 \,\text{s} - \frac{(1 - r) \cdot s_{\text{gesamt}}}{v_{\text{windlos}}}}
+      v' = \frac{r \cdot s}{720\,\text{s} - \frac{(1 - r) \cdot s_{\text{gesamt}}}{v_{\text{windlos}}}}
       \]</p>
-
       <p>\[
       s_{windlos} = v_{windlos} \cdot 720\,\text{s}
       \]</p>
 
       <h3>Erklärung der Variablen:</h3>
-      <table style="width:100%; font-size: 0.7rem;">
+      <table style="font-size: 0.8rem;">
         <tr><td>\( r \)</td><td>Anteil der Strecke mit Wind (1/6 - 1/4)</td></tr>
         <tr><td>\( \rho \)</td><td>Luftdichte (1.2–1.3 kg/m³)</td></tr>
         <tr><td>\( c_d \)</td><td>Strömungswiderstandskoeffizient (0.98–1.05)</td></tr>
@@ -250,7 +264,6 @@
       for (const r of rValues) {
         const s_wind = r * s;
         const s_windlos = (1 - r) * s;
-
         for (const v of vValues) {
           for (const C of cValues) {
             for (const A of AValues) {
@@ -303,7 +316,6 @@
     function updateResult() {
       const strecke = parseFloat(streckeInput.value);
       const gender = document.querySelector('input[name="gender"]:checked').value;
-
       if (!isNaN(strecke)) {
         const result = calculateStrecke(strecke, gender);
         if (isNaN(result.xMin)) {
