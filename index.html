@@ -2,14 +2,15 @@
 <html lang="de">
 <head>
   <!-- MathJax für LaTeX-Formeln -->
-<script>
-  window.MathJax = {
-    tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
-    svg: { fontCache: 'global' }
-  };
-</script>
-<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Streckenrechner</title>
   <style>
     body {
@@ -104,13 +105,19 @@
       display: none;
       justify-content: center;
       align-items: center;
+      padding: 10px;
+      box-sizing: border-box;
     }
 
     .modal-content {
       background: white;
       padding: 20px;
+      max-height: 90vh;
+      overflow-y: auto;
+      width: 100%;
       max-width: 600px;
       border-radius: 10px;
+      position: relative;
     }
 
     .modal-content h2 {
@@ -118,8 +125,11 @@
     }
 
     .close {
-      float: right;
-      font-size: 1.2rem;
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      font-size: 1.5rem;
+      font-weight: bold;
       cursor: pointer;
     }
   </style>
@@ -156,67 +166,59 @@
   </div>
 
   <div class="modal" id="infoModal">
-  <div class="modal-content">
-    <span class="close" onclick="document.getElementById('infoModal').style.display='none'">&times;</span>
-    <h2>Hintergrund & Annahmen</h2>
+    <div class="modal-content">
+      <span class="close" onclick="document.getElementById('infoModal').style.display='none'">&times;</span>
+      <h2>Hintergrund & Annahmen</h2>
 
-    <h3>Gegebene Gleichungen:</h3>
+      <h3>Gegebene Gleichungen:</h3>
 
-    <p>Zeit des Cooper-Laufs von 12min = 720s</p>
+      <p>Zeit des Cooper-Laufs von 12min = 720s</p>
 
-    <p>\[
-    t_{\text{wind}} + t_{\text{windlos}} = 720\,\text{s}
-    \]</p>
+      <p>\[
+      t_{\text{wind}} + t_{\text{windlos}} = 720\,\text{s}
+      \]</p>
 
-    <p>Bewegungsgesetz</p>
-    <p>\[
-    t_{\text{wind}} \cdot v_{\text{wind}} = r \cdot s_{\text{gesamt}}
-    \]</p>
+      <p>\[
+      t_{\text{wind}} \cdot v_{\text{wind}} = r \cdot s_{\text{gesamt}}
+      \]</p>
 
-    <p>Bewegungsgesetz</p>
-    <p>\[
-t_{\text{windlos}} \cdot v_{\text{windlos}} = (1 - r) \cdot s_{\text{gesamt}}
-    \]</p>
+      <p>\[
+      t_{\text{windlos}} \cdot v_{\text{windlos}} = (1 - r) \cdot s_{\text{gesamt}}
+      \]</p>
 
-    <p>Konstante Leistung beim Laufen</p>
-    <p>\[
-    P(v_{\text{wind}}) = P(v_{\text{windlos}})
-    \]</p>
+      <p>\[
+      P(v_{\text{wind}}) = P(v_{\text{windlos}})
+      \]</p>
 
-    <p>Finale Gleichung des Gleichungssystems</p>
-<p>\[
-\frac{1}{2} \rho c_d A (v_{\text{gegenwind}} + v')^2 \cdot v' + \alpha m v' = \frac{1}{2} \rho c_d A v_{\text{windlos}}^3 + \alpha m v_{\text{windlos}}\]
+      <p>\[
+      \frac{1}{2} \rho c_d A (v_{\text{gegenwind}} + v')^2 \cdot v' + \alpha m v' = \frac{1}{2} \rho c_d A v_{\text{windlos}}^3 + \alpha m v_{\text{windlos}}
+      \]</p>
 
-<p>mit:</p>
+      <p>\[
+      v' = \frac{r \cdot s}{720 \,\text{s} - \frac{(1 - r) \cdot s_{\text{gesamt}}}{v_{\text{windlos}}}}
+      \]</p>
 
-\[
-v' = \frac{r \cdot s}{720 - \frac{(1 - r) \cdot s_{\text{gesamt}}}{v_{\text{windlos}}}}
+      <p>\[
+      s_{windlos} = v_{windlos} \cdot 720\,\text{s}
+      \]</p>
 
-\]</p>
-
-    <p>Endergebnis</p>
-    <p>\[
-    s_{windlos} = v_{windlos} \cdot 720\,\text{s}
-    \]</p>
-
-    <h3>Erklärung der Variablen:</h3>
-    <table style="width:100%; font-size: 0.7rem;">
-      <tr><td>\( r \)</td><td>Anteil der Strecke mit Wind (1/6 - 1/4)</td></tr>
-      <tr><td>\( \rho \)</td><td>Luftdichte (1.2–1.3 kg/m³)</td></tr>
-      <tr><td>\( c_d \)</td><td>Strömungswiderstandskoeffizient (0.98–1.05)</td></tr>
-      <tr><td>\( A \)</td><td>Stirnfläche (Frau: 0.45-0.52 m²; Mann: 0.54-0.6 m²)</td></tr>
-      <tr><td>\(v_{\text{gegenwind}} \)</td><td>Gegenwindgeschwindigkeit (20-24 km/h)</td></tr>
-      <tr><td>\( m \)</td><td>Körpermasse (Frau: 55-70 kg; Mann: 65-80 kg)</td></tr>
-      <tr><td>\( \alpha \)</td><td>Reduzierter mechanischer Widerstand (0.95–1.1 N/(kg*m))</td></tr>
-      <tr><td>\(v_{\text{wind}} \)</td><td>Laufgeschwindigkeit bei Wind</td></tr>
-      <tr><td>\( v_{\text{windlos}} \)</td><td>Windlose Laufgeschwindigkeit</td></tr>
-      <tr><td>\(t_{\text{wind}} \)</td><td>Zeit auf der Windlosen Strecke</td></tr>
-      <tr><td>\( t_{\text{windlos}}  \)</td><td>Zeit auf der Strecke mit Wind</td></tr>
-      <tr><td>\( s_{\text{windlos}}  \)</td><td>Strecke wenn es keinen Wind gäbe</td></tr>
-    </table>
+      <h3>Erklärung der Variablen:</h3>
+      <table style="width:100%; font-size: 0.7rem;">
+        <tr><td>\( r \)</td><td>Anteil der Strecke mit Wind (1/6 - 1/4)</td></tr>
+        <tr><td>\( \rho \)</td><td>Luftdichte (1.2–1.3 kg/m³)</td></tr>
+        <tr><td>\( c_d \)</td><td>Strömungswiderstandskoeffizient (0.98–1.05)</td></tr>
+        <tr><td>\( A \)</td><td>Stirnfläche (Frau: 0.45-0.52 m²; Mann: 0.54-0.6 m²)</td></tr>
+        <tr><td>\(v_{\text{gegenwind}} \)</td><td>Gegenwindgeschwindigkeit (20-24 km/h)</td></tr>
+        <tr><td>\( m \)</td><td>Körpermasse (Frau: 55-70 kg; Mann: 65-80 kg)</td></tr>
+        <tr><td>\( \alpha \)</td><td>Reduzierter mechanischer Widerstand (0.95–1.1 N/(kg*m))</td></tr>
+        <tr><td>\(v_{\text{wind}} \)</td><td>Laufgeschwindigkeit bei Wind</td></tr>
+        <tr><td>\( v_{\text{windlos}} \)</td><td>Windlose Laufgeschwindigkeit</td></tr>
+        <tr><td>\(t_{\text{wind}} \)</td><td>Zeit auf der Windlosen Strecke</td></tr>
+        <tr><td>\( t_{\text{windlos}}  \)</td><td>Zeit auf der Strecke mit Wind</td></tr>
+        <tr><td>\( s_{\text{windlos}}  \)</td><td>Strecke wenn es keinen Wind gäbe</td></tr>
+      </table>
+    </div>
   </div>
-</div>
-
 
   <script>
     const streckeInput = document.getElementById("strecke");
@@ -224,63 +226,60 @@ v' = \frac{r \cdot s}{720 - \frac{(1 - r) \cdot s_{\text{gesamt}}}{v_{\text{wind
     const barMin = document.getElementById("barMin");
     const barMax = document.getElementById("barMax");
 
-   function linspace(start, end, num) {
-  const step = (end - start) / (num - 1);
-  return Array.from({ length: num }, (_, i) => start + i * step);
-}
+    function linspace(start, end, num) {
+      const step = (end - start) / (num - 1);
+      return Array.from({ length: num }, (_, i) => start + i * step);
+    }
 
-function calculateStrecke(strecke, gender) {
-  const s = strecke;
-  const t = 720;
+    function calculateStrecke(strecke, gender) {
+      const s = strecke;
+      const t = 720;
+      const rValues = linspace(1 / 6, 1 / 4, 3);
+      const vValues = linspace(20 / 3.6, 24 / 3.6, 3);
+      const cValues = linspace(0.98, 1.05, 2);
+      const alphaValues = linspace(0.95, 1.1, 2);
+      const w = 1.225;
+      const AValues = gender === "w" ? linspace(0.45, 0.52, 2) : linspace(0.54, 0.6, 2);
+      const mValues = gender === "w" ? linspace(55, 70, 2) : linspace(65, 80, 2);
 
-  // Parameter-Räume
-  const rValues = linspace(1 / 6, 1 / 4, 3); // Windanteil
-  const vValues = linspace(20 / 3.6, 24 / 3.6, 3); // Gegenwind in m/s
-  const cValues = linspace(0.98, 1.05, 2); // Widerstandsbeiwert
-  const alphaValues = linspace(0.95, 1.1, 2); // mechanischer Korrekturfaktor
-  const w = 1.225; // Luftdichte fix
-  const AValues = gender === "w" ? linspace(0.45, 0.52, 2) : linspace(0.54, 0.6, 2);
-  const mValues = gender === "w" ? linspace(55, 70, 2) : linspace(65, 80, 2);
+      let xMin = Infinity;
+      let xMax = -Infinity;
+      const xStart = 0.5;
+      const xEnd = Math.max(10, s / 50);
 
-  let xMin = Infinity;
-  let xMax = -Infinity;
+      for (const r of rValues) {
+        const s_wind = r * s;
+        const s_windlos = (1 - r) * s;
 
-  const xStart = 0.5;
-  const xEnd = Math.max(10, s / 50);
+        for (const v of vValues) {
+          for (const C of cValues) {
+            for (const A of AValues) {
+              for (const alpha of alphaValues) {
+                for (const m of mValues) {
+                  const a = 0.5 * w * C * A;
+                  const f = alpha * m;
 
-  for (const r of rValues) {
-    const s_wind = r * s;
-    const s_windlos = (1 - r) * s;
+                  function func(x) {
+                    if (x <= 0) return NaN;
+                    const denom = t - s_windlos / x;
+                    if (denom <= 0) return NaN;
+                    const v_eff = s_wind / denom;
+                    const left = a * Math.pow(v + v_eff, 2) * v_eff + f * v_eff;
+                    const right = a * Math.pow(x, 3) + f * x;
+                    return left - right;
+                  }
 
-    for (const v of vValues) {
-      for (const C of cValues) {
-        for (const A of AValues) {
-          for (const alpha of alphaValues) {
-            for (const m of mValues) {
-              const a = 0.5 * w * C * A;
-              const f = alpha * m;
-
-              function func(x) {
-                if (x <= 0) return NaN;
-                const denom = t - s_windlos / x;
-                if (denom <= 0) return NaN;
-
-                const v_eff = s_wind / denom;
-                const left = a * Math.pow(v + v_eff, 2) * v_eff + f * v_eff;
-                const right = a * Math.pow(x, 3) + f * x;
-                return left - right;
-              }
-
-              for (let x = xStart; x <= xEnd; x += 0.02) {
-                const y1 = func(x);
-                const y2 = func(x + 0.02);
-                if (isNaN(y1) || isNaN(y2)) continue;
-
-                if (y1 * y2 < 0) {
-                  const root = x - y1 * (0.02 / (y2 - y1)); // lineare Interpolation
-                  if (root > 0) {
-                    if (root < xMin) xMin = root;
-                    if (root > xMax) xMax = root;
+                  for (let x = xStart; x <= xEnd; x += 0.02) {
+                    const y1 = func(x);
+                    const y2 = func(x + 0.02);
+                    if (isNaN(y1) || isNaN(y2)) continue;
+                    if (y1 * y2 < 0) {
+                      const root = x - y1 * (0.02 / (y2 - y1));
+                      if (root > 0) {
+                        if (root < xMin) xMin = root;
+                        if (root > xMax) xMax = root;
+                      }
+                    }
                   }
                 }
               }
@@ -288,23 +287,18 @@ function calculateStrecke(strecke, gender) {
           }
         }
       }
+
+      if (xMin === Infinity || xMax === -Infinity) {
+        return { xMin: NaN, xMax: NaN };
+      }
+
+      return {
+        xMin: xMin,
+        xMax: xMax,
+        streckeMin: xMin * 720,
+        streckeMax: xMax * 720
+      };
     }
-  }
-
-  if (xMin === Infinity || xMax === -Infinity) {
-    return { xMin: NaN, xMax: NaN };
-  }
-
-  return {
-    xMin: xMin,
-    xMax: xMax,
-    streckeMin: xMin * 720,
-    streckeMax: xMax * 720
-  };
-}
-
-
-
 
     function updateResult() {
       const strecke = parseFloat(streckeInput.value);
@@ -318,15 +312,12 @@ function calculateStrecke(strecke, gender) {
           barMax.style.width = "0";
         } else {
           resultInput.value = `Min: ${result.streckeMin.toFixed(2)} m, Max: ${result.streckeMax.toFixed(2)} m`;
-
           const maxWidth = 100;
           const scale = Math.max(result.streckeMax, 1);
           const widthMin = (result.streckeMin / scale) * maxWidth;
           const widthMax = (result.streckeMax / scale) * maxWidth;
-
           barMin.style.width = `${widthMin}%`;
           barMin.textContent = `Min: ${result.streckeMin.toFixed(0)} m`;
-
           barMax.style.width = `${widthMax}%`;
           barMax.textContent = `Max: ${result.streckeMax.toFixed(0)} m`;
         }
@@ -342,7 +333,7 @@ function calculateStrecke(strecke, gender) {
       radio.addEventListener("change", updateResult);
     });
 
-    updateResult(); // initial aufrufen
+    updateResult();
   </script>
 </body>
 </html>
