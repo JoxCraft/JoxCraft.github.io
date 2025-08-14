@@ -345,17 +345,25 @@ function renderAttackCard(a){
   const wrap=document.createElement('label'); wrap.className='card';
   const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=sel.has(a.n); cb.disabled=iAmReady;
   cb.addEventListener('change',()=>{
-    if(cb.checked){
-      if(selRangelei.has(a.n)) { cb.checked=false; log('Dieser Name ist bereits als Rangelei ausgewählt.', 'warn'); return; }
-      if(sel.size >= allowedSlots()) { cb.checked=false; log('Attacken-Slots voll.', 'warn'); return; }
-      sel.add(a.n);
-    } else {
-      sel.delete(a.n);
-      if(a.n==='Immer vorbereitet'){ selRangelei.clear(); renderRangeleis(); }
-    }
-    renderReviewLists();
-    updateCounters();
-  });
+  const wasNeeds = needsRangelei(); // Zustand VOR der Änderung
+
+  if(cb.checked){
+    if(selRangelei.has(a.n)) { cb.checked=false; log('Dieser Name ist bereits als Rangelei ausgewählt.', 'warn'); return; }
+    if(sel.size >= allowedSlots()) { cb.checked=false; log('Attacken-Slots voll.', 'warn'); return; }
+    sel.add(a.n);
+  } else {
+    sel.delete(a.n);
+  }
+
+  // WICHTIG: Wenn "Immer vorbereitet" (de)aktiviert wurde, Rangeleien sofort neu bauen
+  if (a.n === 'Immer vorbereitet' && wasNeeds !== needsRangelei()) {
+    if(!needsRangelei()) selRangelei.clear();
+    renderRangeleis();
+  }
+
+  renderReviewLists();
+  updateCounters();
+});
   const box=document.createElement('div');
   const title=document.createElement('div'); title.className='title'; title.textContent=a.n;
   const tags=document.createElement('div'); tags.className='tags'; (a.t||[]).forEach(t=>{ const chip=document.createElement('span'); chip.className='chip'; chip.textContent=t; tags.appendChild(chip); });
@@ -424,11 +432,25 @@ const stepButtons=[...document.querySelectorAll('.step')];
 
 function gotoStep(idx){
   currentStep = Math.max(0, Math.min(idx, 3));
+
+  // Screens/Stepper umschalten
   screens.forEach(s=>s.classList.toggle('active', Number(s.dataset.step)===currentStep));
   stepButtons.forEach((b,i)=>{
     b.classList.toggle('active', i===currentStep);
     b.classList.toggle('done', i<currentStep);
   });
+
+  // Buttons
+  prevBtn.disabled = currentStep===0;
+  nextBtn.textContent = currentStep===3 ? "Fertig" : "Weiter →";
+
+  // WICHTIG: Beim Betreten von Schritt 2 Rangeleien neu rendern
+  if (currentStep === 2) renderRangeleis();
+
+  // Review/Counter aktualisieren
+  renderReviewLists();
+  updateCounters();
+}
   prevBtn.disabled = currentStep===0;
   nextBtn.textContent = currentStep===3 ? "Fertig" : "Weiter →";
   // Review auffrischen
