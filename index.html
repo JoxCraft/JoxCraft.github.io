@@ -3,145 +3,321 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>OsJa – Matchmaking (Ably)</title>
+  <title>OsJa – 2-Spieler Match & Attacken wählen</title>
+
+  <!-- Ably JS SDK (v1, über CDN) -->
   <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
+
   <style>
-    body{font-family:system-ui,sans-serif;background:#0b0f14;color:#e6eef7;margin:0}
-    .wrap{max-width:760px;margin:6rem auto;padding:0 1rem}
-    .card{background:#121822;border:1px solid #1f2937;border-radius:12px;padding:24px}
-    h1{margin:0 0 8px}.sub{color:#94a3b8;margin-top:0}
-    .row{display:flex;gap:12px;margin:16px 0}
-    input{flex:1;padding:12px;border-radius:10px;border:1px solid #334155;background:#0f1420;color:#e6eef7}
-    button{padding:12px 16px;border-radius:10px;border:0;background:#2563eb;color:#fff;font-weight:600;cursor:pointer}
-    button.secondary{background:#334155}
-    .log{font-family:ui-monospace,monospace;background:#0d121a;border:1px solid #1f2937;border-radius:10px;padding:12px;max-height:300px;overflow:auto;white-space:pre-wrap}
-    .ok{color:#86efac}.warn{color:#facc15}.err{color:#fca5a5}
-    .badge{display:inline-block;padding:4px 8px;border-radius:12px;font-size:12px;background:#0b3b78}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
+    :root { --bg:#0b0f14; --panel:#121822; --muted:#93a1b1; --line:#1f2937; --ok:#86efac; --warn:#facc15; --err:#fca5a5; --primary:#2563eb; }
+    html,body { margin:0; background:var(--bg); color:#e6eef7; font-family:system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    .wrap { max-width: 900px; margin: 32px auto; padding: 0 16px; }
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px; box-shadow:0 12px 30px rgba(0,0,0,.25); }
+    h1 { margin:0 0 6px; font-size:26px; }
+    p.sub { margin:0 0 16px; color:var(--muted); }
+    .row { display:flex; gap:10px; margin:10px 0; flex-wrap:wrap; }
+    input, button, select { padding:12px 14px; border-radius:10px; border:1px solid var(--line); background:#0f1420; color:#e6eef7; font-size:16px; }
+    button { background:var(--primary); border:0; cursor:pointer; font-weight:600; }
+    button.secondary { background:#334155; }
+    button:disabled { opacity:.6; cursor:not-allowed; }
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-top:16px; }
+    .panel { background:#0d121a; border:1px solid var(--line); border-radius:10px; padding:12px; }
+    .log { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; max-height:220px; overflow:auto; }
+    .badge { display:inline-block; padding:4px 8px; border-radius:10px; font-size:12px; background:#0b3b78; }
+    .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)}
+    .attacks { display:grid; grid-template-columns: repeat(auto-fill,minmax(220px,1fr)); gap:8px; margin-top:12px; }
+    .attack { display:flex; align-items:center; gap:8px; padding:8px; border:1px solid var(--line); border-radius:10px; background:#0f1420; }
+    .footer { margin-top:10px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+    .small { color:var(--muted); font-size:12px; }
+    .pill { padding:2px 8px; border:1px solid var(--line); border-radius:999px; background:#0f1420; font-size:12px; }
+    .two-col { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .list { margin:6px 0 0; padding-left:18px; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="card">
-      <h1>OsJa – Spiel beitreten</h1>
-      <p class="sub">Gib denselben Code ein wie dein Mitspieler. Sobald 2 im Raum sind, startet das Match.</p>
+      <h1>OsJa – Spiel beitreten & Attacken wählen</h1>
+      <p class="sub">Gleicher <b>Code</b> = gleiches Spiel. Wenn zwei drin sind, wählt jede*r <b>4 Attacken</b> und drückt „Bereit“.</p>
 
       <div class="row">
-        <input id="code" placeholder="z. B. osja-123" maxlength="32" />
+        <input id="name" placeholder="Dein Name (optional)" />
+        <input id="code" placeholder="Spielcode, z. B. osja-123" />
         <button id="join">Beitreten</button>
         <button id="leave" class="secondary" disabled>Verlassen</button>
+        <span class="badge" id="status">offline</span>
       </div>
 
       <div class="grid">
-        <div><span class="badge" id="status">offline</span></div>
-        <div style="text-align:right">Spieler im Raum: <span id="count">0</span></div>
+        <div class="panel">
+          <b>Raum</b>
+          <div class="small" id="roomInfo">Kein Raum</div>
+          <div class="small">Spieler online: <span id="onlineCount">0</span> / 2</div>
+          <div class="small">Du: <span id="meId">–</span></div>
+          <div class="small">Gegner: <span id="opId">–</span></div>
+          <div class="small">Status: <span id="readyState">Warten…</span></div>
+        </div>
+
+        <div class="panel">
+          <b>Log</b>
+          <div id="log" class="log"></div>
+        </div>
       </div>
 
-      <h3>Log</h3>
-      <div id="log" class="log"></div>
+      <div class="grid">
+        <div class="panel">
+          <div class="two-col">
+            <div><b>Deine Auswahl</b> <span class="pill" id="selCount">0 / 4</span></div>
+            <div style="text-align:right">
+              <button id="readyBtn" disabled>Bereit senden</button>
+            </div>
+          </div>
+          <div class="row">
+            <input id="filter" placeholder="Attacken filtern…" />
+            <button id="clearSel" class="secondary" disabled>Auswahl löschen</button>
+          </div>
+          <div id="attacks" class="attacks"></div>
+        </div>
+
+        <div class="panel">
+          <b>Gegnerische Auswahl</b>
+          <ol id="oppList" class="list"></ol>
+        </div>
+      </div>
+
+      <p class="small">Demo-Hinweis: Dies ist ein reines Frontend auf GitHub Pages. Der Ably-Key liegt im Client (nur für Tests zu empfehlen).</p>
     </div>
   </div>
 
-<script>
-const logEl = document.getElementById("log");
-const statusEl = document.getElementById("status");
-const countEl  = document.getElementById("count");
-const codeEl   = document.getElementById("code");
-const joinBtn  = document.getElementById("join");
-const leaveBtn = document.getElementById("leave");
+  <script>
+    // === KONFIG ===
+    const ABLY_KEY = "3wcmYg.8GQUGA:WaFbpDvdQSDdntaxL6mBMg72Om8OcOybipf-Sbs5eRc"; // ⚠️ öffentlich! Für Produktion Key restriktieren oder Token-Auth nutzen.
+    const CHANNEL_NS = "osja"; // Namespace für deine Räume
 
-function log(msg, cls=""){const t=new Date().toLocaleTimeString();
-  const d=document.createElement("div"); if(cls) d.classList.add(cls);
-  d.textContent=`[${t}] ${msg}`; logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight;}
+    // Auswahl: simple Demo-Liste (du kannst beliebig erweitern)
+    const ALL_ATTACKS = [
+      "Zaubertrick","Zauberkunststück","Prestige","Meister der Magie","Alles oder nichts","Gedankenkontrolle",
+      "Feurige Waffen","Hartes Training","Vorbereitung","Wut","Messerwürfe","Letzter Wille","Messerstich",
+      "Verrat","Schwertschlag","Finale","Heilung","Verführerisches Angebot","Metallschild","Schneesturm",
+      "Schild und Schwert","Schnell","Schneller","Immer vorbereitet","Zweite Chance"
+    ];
 
-let ably=null, channel=null, joined=false, matchStarted=false;
+    // === UI-Refs ===
+    const el = (id)=>document.getElementById(id);
+    const logEl = el("log"), statusEl = el("status"), roomInfoEl=el("roomInfo");
+    const nameEl = el("name"), codeEl = el("code"), joinBtn = el("join"), leaveBtn = el("leave");
+    const onlineCountEl=el("onlineCount"), meIdEl=el("meId"), opIdEl=el("opId"), readyStateEl=el("readyState");
+    const attacksWrap = el("attacks"), selCountEl = el("selCount"), readyBtn = el("readyBtn");
+    const oppListEl = el("oppList"), filterEl = el("filter"), clearSelBtn = el("clearSel");
 
-function setUi(connected){
-  joinBtn.disabled = connected;
-  codeEl.disabled  = connected;
-  leaveBtn.disabled= !connected;
-  statusEl.textContent = connected ? "verbunden" : "offline";
-}
+    // === State ===
+    let client = null;
+    let channel = null;
+    let myId = null;
+    let mySelection = new Set();
+    let oppSelection = [];
+    let roomCode = null;
+    let iAmReady = false;
+    let oppReady = false;
 
-async function getMemberCount(){
-  try {
-    const members = await channel.presence.get();
-    countEl.textContent = members.length;
-    return members.length;
-  } catch(e){ log("Presence get() fehlgeschlagen: "+e.message, "err"); return 0; }
-}
-
-async function maybeStartMatch(){
-  const n = await getMemberCount();
-  if (n === 2 && !matchStarted){
-    matchStarted = true;
-    log("🟢 Zwei Spieler gefunden – Match kann starten!", "ok");
-    channel.publish("matchStart", { t: Date.now() });
-  }
-}
-
-async function join(){
-  const code = (codeEl.value||"").trim().toLowerCase();
-  if (!code || code.length < 3){ log("Bitte Code mit mind. 3 Zeichen eingeben.", "warn"); return; }
-
-  // 1) Ably verbinden (KEY EINTRAGEN!)
-  try{
-    ably = new Ably.Realtime.Promise({ key: "3wcmYg.8GQUGA:WaFbpDvdQSDdntaxL6mBMg72Om8OcOybipf-Sbs5eRc" });
-  }catch(e){ log("Ably init fehlgeschlagen: "+e.message, "err"); return; }
-
-  ably.connection.on("failed", ()=> log("Verbindung fehlgeschlagen.", "err"));
-  ably.connection.on("disconnected", ()=> log("Verbindung getrennt.", "warn"));
-
-  await new Promise(res => ably.connection.once("connected", res));
-  log("Mit Ably verbunden.", "ok");
-
-  // 2) Channel + attach
-  channel = ably.channels.get("osja:"+code);
-  await channel.attach();
-  log("Channel attached: osja:"+code, "ok");
-
-  // 3) Presence betreten
-  try{
-    await channel.presence.enter({ joinedAt: Date.now() });
-    log("Presence betreten.", "ok");
-  }catch(e){
-    log("Presence enter fehlgeschlagen: "+e.message, "err");
-    return;
-  }
-
-  setUi(true); joined = true;
-
-  // 4) Live-Updates: Presence
-  channel.presence.subscribe(["enter","leave","update"], async ()=> {
-    await getMemberCount();
-    await maybeStartMatch();
-  });
-
-  // Initial prüfen
-  await getMemberCount();
-  await maybeStartMatch();
-
-  // 5) „matchStart“ hören (falls der andere es zuerst sendet)
-  channel.subscribe("matchStart", () => {
-    if (!matchStarted){
-      matchStarted = true;
-      log("🟢 MatchStart empfangen.", "ok");
+    // === Helpers ===
+    function log(msg, cls="") {
+      const d = new Date().toLocaleTimeString();
+      const line = document.createElement("div");
+      if (cls) line.classList.add(cls);
+      line.textContent = `[${d}] ${msg}`;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
     }
-  });
-}
+    function shortId() {
+      return Math.random().toString(36).slice(2, 7);
+    }
+    function setConnected(on, code="") {
+      statusEl.textContent = on ? `verbunden: ${code}` : "offline";
+      joinBtn.disabled = on;
+      codeEl.disabled = on;
+      nameEl.disabled = on;
+      leaveBtn.disabled = !on;
+      readyBtn.disabled = !on || mySelection.size !== 4 || iAmReady;
+      clearSelBtn.disabled = !on || mySelection.size === 0 || iAmReady;
+    }
+    function updateSelCounter() {
+      selCountEl.textContent = `${mySelection.size} / 4`;
+      readyBtn.disabled = !client || mySelection.size !== 4 || iAmReady;
+      clearSelBtn.disabled = !client || mySelection.size === 0 || iAmReady;
+    }
+    function renderAttacks(filter="") {
+      attacksWrap.innerHTML = "";
+      const f = filter.trim().toLowerCase();
+      const list = ALL_ATTACKS.filter(a => a.toLowerCase().includes(f));
+      list.forEach(name => {
+        const row = document.createElement("label");
+        row.className = "attack";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.disabled = iAmReady;
+        cb.checked = mySelection.has(name);
+        cb.addEventListener("change", () => {
+          if (cb.checked) {
+            if (mySelection.size >= 4) {
+              cb.checked = false;
+              log("Du kannst höchstens 4 Attacken wählen.", "warn");
+              return;
+            }
+            mySelection.add(name);
+          } else {
+            mySelection.delete(name);
+          }
+          updateSelCounter();
+        });
+        const span = document.createElement("span");
+        span.textContent = name;
+        row.appendChild(cb);
+        row.appendChild(span);
+        attacksWrap.appendChild(row);
+      });
+      updateSelCounter();
+    }
+    function renderOpponentList() {
+      oppListEl.innerHTML = "";
+      oppSelection.forEach(n => {
+        const li = document.createElement("li");
+        li.textContent = n;
+        oppListEl.appendChild(li);
+      });
+    }
+    function computeRoles(members) {
+      // Nur kosmetisch: bestimme Gegner-ID = erste andere ID
+      const others = members.filter(m => m.clientId !== myId);
+      return others[0]?.clientId || null;
+    }
 
-async function leave(){
-  try{ if (channel && joined) await channel.presence.leave(); }catch(e){}
-  try{ if (channel) await channel.detach(); }catch(e){}
-  try{ if (ably) ably.close(); }catch(e){}
-  joined=false; matchStarted=false; channel=null; ably=null;
-  countEl.textContent = "0";
-  setUi(false); log("Verlassen.", "warn");
-}
+    // === Presence-Handling ===
+    async function refreshPresence() {
+      const members = await channel.presence.get();
+      onlineCountEl.textContent = members.length;
+      const opp = computeRoles(members);
+      opIdEl.textContent = opp || "–";
+      // Raum voll? (nur Client-Schranke)
+      if (members.length > 2) {
+        log("Raum ist voll (max 2). Du verlässt wieder.", "warn");
+        await channel.presence.leave();
+        client.connection.close();
+        return;
+      }
+      // Gegnerdaten aus Presence ziehen, falls vorhanden
+      const oppMember = members.find(m => m.clientId === opp);
+      if (oppMember?.data) {
+        oppReady = !!oppMember.data.ready;
+        oppSelection = Array.isArray(oppMember.data.selected) ? oppMember.data.selected : [];
+      } else {
+        oppReady = false;
+        oppSelection = [];
+      }
+      renderOpponentList();
+      readyStateEl.textContent = iAmReady && oppReady ? "Beide bereit! 🎉" :
+                                 iAmReady ? "Du bist bereit. Warte auf Gegner…" :
+                                 oppReady ? "Gegner ist bereit. Wähle deine 4!" :
+                                            "Warten auf beide Auswahlen…";
+    }
 
-joinBtn.addEventListener("click", join);
-leaveBtn.addEventListener("click", leave);
-setUi(false);
-</script>
+    async function joinRoom() {
+      roomCode = (codeEl.value || "").trim().toLowerCase();
+      if (!roomCode || roomCode.length < 3) {
+        log("Bitte einen Code mit mindestens 3 Zeichen eingeben.", "warn");
+        return;
+      }
+      // Client-ID aus Name oder Zufall
+      const baseName = (nameEl.value || "").trim() || "player";
+      myId = `${baseName}-${shortId()}`;
+      meIdEl.textContent = myId;
+      roomInfoEl.textContent = `${CHANNEL_NS}:${roomCode}`;
+
+      client = new Ably.Realtime({ key: ABLY_KEY, clientId: myId });
+      client.connection.once("connected", async () => {
+        log("Mit Ably verbunden.", "ok");
+        setConnected(true, roomCode);
+        channel = client.channels.get(`${CHANNEL_NS}:${roomCode}`);
+
+        channel.once("attached", async () => {
+          log("Kanal verbunden.");
+          // Presence beitreten
+          await channel.presence.enter({ ready:false, selected:[] });
+          await refreshPresence();
+
+          // Presence-Events
+          channel.presence.subscribe(["enter","update","leave"], async () => {
+            await refreshPresence();
+          });
+
+          // Optionale Chat/Signal-Events (hier nicht genutzt)
+          channel.subscribe("lock", () => { /* später: Raum sperren */ });
+        });
+
+        channel.attach((err) => {
+          if (err) log("Fehler beim Attach: " + err.message, "err");
+        });
+      });
+
+      client.connection.on((stateChange) => {
+        if (stateChange.current === "disconnected" || stateChange.current === "suspended" || stateChange.current === "closed") {
+          setConnected(false);
+          log(`Verbindung: ${stateChange.current}`, stateChange.current === "closed" ? "warn" : "err");
+        }
+      });
+    }
+
+    async function leaveRoom() {
+      try {
+        if (channel) await channel.presence.leave();
+      } catch {}
+      try {
+        if (client) client.connection.close();
+      } catch {}
+      setConnected(false);
+      roomInfoEl.textContent = "Kein Raum";
+      onlineCountEl.textContent = "0";
+      opIdEl.textContent = "–";
+      readyStateEl.textContent = "Warten…";
+      iAmReady = false; oppReady = false;
+      mySelection.clear();
+      oppSelection = [];
+      renderAttacks(filterEl.value);
+      renderOpponentList();
+      log("Verlassen.");
+      client = null; channel = null; myId = null; roomCode = null;
+    }
+
+    // === UI-Events ===
+    joinBtn.addEventListener("click", joinRoom);
+    leaveBtn.addEventListener("click", leaveRoom);
+    filterEl.addEventListener("input", () => renderAttacks(filterEl.value));
+    clearSelBtn.addEventListener("click", () => { mySelection.clear(); renderAttacks(filterEl.value); });
+
+    readyBtn.addEventListener("click", async () => {
+      if (!client || !channel) return;
+      if (mySelection.size !== 4) { log("Wähle genau 4 Attacken.", "warn"); return; }
+      iAmReady = true;
+      // Auswahl fixieren
+      const arr = Array.from(mySelection);
+      // In Presence speichern (damit Gegner sie sieht)
+      await channel.presence.update({ ready:true, selected:arr });
+      // UI sperren
+      document.querySelectorAll(".attack input[type=checkbox]").forEach(cb => cb.disabled = true);
+      readyBtn.disabled = true;
+      clearSelBtn.disabled = true;
+      await refreshPresence();
+      log("Bereit gesendet. Auswahl fixiert.", "ok");
+    });
+
+    // Render initial
+    renderAttacks();
+
+    // Clean up on close
+    window.addEventListener("beforeunload", () => {
+      try { if (channel) channel.presence.leave(); } catch {}
+      try { if (client) client.connection.close(); } catch {}
+    });
+  </script>
 </body>
 </html>
