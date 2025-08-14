@@ -3,347 +3,412 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>OsJa – Auswahl (Step 1)</title>
+  <title>OsJa – Auswahl (Step 1, UI+Daten verbessert)</title>
   <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
   <style>
-    :root { --bg:#0b0f14; --panel:#121822; --muted:#93a1b1; --line:#1f2937; --ok:#86efac; --warn:#facc15; --err:#fca5a5; --primary:#2563eb; }
-    html,body { margin:0; background:var(--bg); color:#e6eef7; font-family:system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
-    .wrap { max-width: 1000px; margin: 32px auto; padding: 0 16px; }
-    .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px; box-shadow:0 12px 30px rgba(0,0,0,.25); }
-    h1 { margin:0 0 6px; font-size:26px; }
-    p.sub { margin:0 0 16px; color:var(--muted); }
-    .row { display:flex; gap:10px; margin:10px 0; flex-wrap:wrap; }
-    input, button, select { padding:12px 14px; border-radius:10px; border:1px solid var(--line); background:#0f1420; color:#e6eef7; font-size:16px; }
-    button { background:var(--primary); border:0; cursor:pointer; font-weight:600; }
-    button.secondary { background:#334155; }
-    button:disabled { opacity:.6; cursor:not-allowed; }
-    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-top:16px; }
-    .panel { background:#0d121a; border:1px solid var(--line); border-radius:10px; padding:12px; }
-    .log { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; max-height:220px; overflow:auto; }
-    .badge { display:inline-block; padding:4px 8px; border-radius:10px; font-size:12px; background:#0b3b78; }
+    :root {
+      --bg:#0b0f14; --panel:#0f1420; --panel2:#0d121a; --muted:#93a1b1; --line:#1f2937; --ok:#86efac; --warn:#facc15; --err:#fca5a5; --primary:#2563eb;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;background:var(--bg);color:#e6eef7;font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif}
+    .app{display:grid;grid-template-rows:auto 1fr;min-height:100vh}
+    header{position:sticky;top:0;z-index:5;background:rgba(11,15,20,.9);backdrop-filter:saturate(1.2) blur(6px);border-bottom:1px solid var(--line)}
+    .bar{display:flex;gap:10px;align-items:center;max-width:1200px;margin:0 auto;padding:10px 16px}
+    input,button,select{padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:#0f1420;color:#e6eef7;font-size:14px}
+    button{background:var(--primary);border:0;font-weight:600;cursor:pointer}
+    button.secondary{background:#334155}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .badge{padding:4px 8px;border:1px solid var(--line);border-radius:999px;background:#0b3b78;font-size:12px}
+
+    main{max-width:1200px;margin:14px auto;padding:0 16px;display:grid;grid-template-columns: 1.2fr .8fr;gap:14px}
+
+    .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;min-height:0}
+    .card h3{margin:0;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--panel2)}
+    .card .body{padding:12px;min-height:0;display:flex;gap:12px}
+
+    /* Tabs */
+    .tabs{display:flex;border-bottom:1px solid var(--line);gap:6px;padding:6px;background:var(--panel2)}
+    .tab{padding:8px 10px;border-radius:10px;cursor:pointer;border:1px solid transparent}
+    .tab.active{border-color:var(--line);background:#0b3b78}
+
+    /* Columns inside selection */
+    .col{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0}
+    .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+    .list{flex:1;min-height:0;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:8px;background:#0d121a}
+
+    /* Attack items */
+    .item{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;padding:8px;border:1px solid #1c2431;border-radius:10px;background:#0f1624;margin-bottom:6px}
+    .item .name{font-weight:600}
+    .tags{display:flex;flex-wrap:wrap;gap:4px}
+    .tag{font-size:10px;padding:2px 6px;border:1px solid var(--line);border-radius:999px;background:#0b3b78}
+    .iconbtn{background:transparent;border:1px solid var(--line);border-radius:8px;padding:4px 8px;cursor:pointer}
+
+    /* Right info panel */
+    .info{border:1px solid var(--line);border-radius:10px;background:#0d121a;padding:10px}
+    .info h4{margin:0 0 6px}
+    .muted{color:var(--muted)}
+    .pill{padding:2px 8px;border:1px solid var(--line);border-radius:999px;background:#0f1420;font-size:12px}
+
+    /* Log */
+    .log{min-height:120px;max-height:220px;overflow:auto;font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;background:#0d121a;border:1px solid var(--line);border-radius:10px;padding:8px}
     .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)}
-    .attacks { display:grid; grid-template-columns: repeat(auto-fill,minmax(240px,1fr)); gap:8px; margin-top:12px; }
-    .attack { display:flex; align-items:flex-start; gap:8px; padding:8px; border:1px solid var(--line); border-radius:10px; background:#0f1420; }
-    .name { font-weight:600; }
-    .tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
-    .tag { font-size:11px; padding:2px 6px; border:1px solid var(--line); border-radius:999px; background:#0b3b78; }
-    .small { color:var(--muted); font-size:12px; }
-    .pill { padding:2px 8px; border:1px solid var(--line); border-radius:999px; background:#0f1420; font-size:12px; }
-    .two-col { display:grid; grid-template-columns: 1fr 1fr; gap:10px; align-items:center; }
-    .list { margin:6px 0 0; padding-left:18px; }
-    .hidden { display:none; }
+
+    @media (max-width:960px){ main{grid-template-columns:1fr} }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="card">
-      <h1>OsJa – Spiel beitreten & (geheime) Auswahl</h1>
-      <p class="sub">Step 1: Korrekte Auswahl-Logik mit <b>Geheimhaltung</b>, <b>Verführerisches Angebot</b> (+2 Slots) & <b>Rangeleien</b> (nur falls <i>Immer vorbereitet</i> gewählt).</p>
-
-      <div class="row">
-        <input id="name" placeholder="Dein Name (optional)" />
-        <input id="code" placeholder="Spielcode, z. B. osja-123" />
-        <button id="join">Beitreten</button>
-        <button id="leave" class="secondary" disabled>Verlassen</button>
-        <span class="badge" id="status">offline</span>
-      </div>
-
-      <div class="grid">
-        <div class="panel">
-          <b>Raum</b>
-          <div class="small" id="roomInfo">Kein Raum</div>
-          <div class="small">Spieler online: <span id="onlineCount">0</span> / 2</div>
-          <div class="small">Du: <span id="meId">–</span></div>
-          <div class="small">Gegner: <span id="opId">–</span></div>
-          <div class="small">Status: <span id="readyState">Warten…</span></div>
-        </div>
-
-        <div class="panel">
-          <b>Log</b>
-          <div id="log" class="log"></div>
-        </div>
-      </div>
-
-      <div class="grid">
-        <div class="panel">
-          <div class="two-col">
-            <div><b>Deine Attacken</b> <span class="pill" id="selCount">0 / 4</span> <span class="small" id="slotsInfo"></span></div>
-            <div style="text-align:right">
-              <button id="readyBtn" disabled>Bereit (geheim) senden</button>
-            </div>
-          </div>
-          <div class="row">
-            <input id="filter" placeholder="Attacken filtern…" />
-            <button id="clearSel" class="secondary" disabled>Auswahl löschen</button>
-          </div>
-          <div id="attacks" class="attacks"></div>
-        </div>
-
-        <div class="panel">
-          <b>Rangeleien (nur wenn <i>Immer vorbereitet</i> gewählt)</b>
-          <div class="small">Wähle genau <b>3</b> Rangeleien. Sie bleiben weiterhin geheim.</div>
-          <div class="two-col" style="margin-top:8px">
-            <div><span class="pill" id="rangeleiCount">0 / 3</span></div>
-            <div style="text-align:right"><input id="rangeleiFilter" placeholder="Rangeleien filtern…" /></div>
-          </div>
-          <div id="rangeleis" class="attacks"></div>
-        </div>
-      </div>
-
-      <div class="grid">
-        <div class="panel">
-          <b>Gegnerische Passivattacken (offenbart nach beidseitigem Bereit)</b>
-          <ol id="oppPassives" class="list"></ol>
-        </div>
-        <div class="panel">
-          <b>Deine (offenbarte) Passivattacken</b>
-          <ol id="myPassives" class="list"></ol>
-        </div>
-      </div>
-
-      <p class="small">Geheimhaltung aktiv: Gegner sieht <u>keine</u> Auswahl, bis beide auf „Bereit“ sind. Danach werden nur <b>Passiv</b>-Attacken offenbart (Regelergänzung #1).</p>
+<div class="app">
+  <header>
+    <div class="bar">
+      <strong>OsJa – Auswahl (Step 1)</strong>
+      <input id="name" placeholder="Dein Name" style="min-width:140px" />
+      <input id="code" placeholder="Spielcode (z. B. osja-123)" style="min-width:180px" />
+      <button id="join">Beitreten</button>
+      <button id="leave" class="secondary" disabled>Verlassen</button>
+      <span class="badge" id="status">offline</span>
+      <span class="badge" id="selCount">0 / 4</span>
+      <span class="badge" id="rangeleiCount">0 / 3</span>
     </div>
-  </div>
+  </header>
 
-  <script>
-    // === KONFIG ===
-    const ABLY_KEY = "3wcmYg.8GQUGA:WaFbpDvdQSDdntaxL6mBMg72Om8OcOybipf-Sbs5eRc"; // Demo – öffentlich
-    const CHANNEL_NS = "osja";
+  <main>
+    <section class="card" style="grid-column:1 / span 2">
+      <div class="tabs">
+        <div class="tab active" data-tab="auswahl">Auswahl</div>
+        <div class="tab" data-tab="rangeleien">Rangeleien</div>
+        <div class="tab" data-tab="status">Status & Log</div>
+      </div>
+      <div class="body" id="tab-auswahl">
+        <div class="col">
+          <div class="toolbar">
+            <input id="filter" placeholder="Attacken filtern…" style="flex:1" />
+            <button id="readyBtn" disabled>Bereit (geheim) senden</button>
+            <button id="clearSel" class="secondary" disabled>Auswahl löschen</button>
+            <span id="slotsInfo" class="muted"></span>
+          </div>
+          <div id="attacks" class="list"></div>
+        </div>
+        <div class="col" style="max-width:380px">
+          <div class="info" id="infoPane">
+            <h4>Info</h4>
+            <div class="muted">Klicke eine Attacke für Details.</div>
+          </div>
+        </div>
+      </div>
+      <div class="body" id="tab-rangeleien" style="display:none">
+        <div class="col">
+          <div class="toolbar">
+            <input id="rangeleiFilter" placeholder="Rangeleien filtern…" style="flex:1" />
+            <span class="muted">Nur mit <b>Immer vorbereitet</b> wählbar (genau 3).</span>
+          </div>
+          <div id="rangeleis" class="list"></div>
+        </div>
+        <div class="col" style="max-width:380px">
+          <div class="info">
+            <h4>Rangeleien</h4>
+            <div class="muted">Kleinteilige Reaktionen/Konter. Namen dürfen nicht doppelt mit Attacken kollidieren.</div>
+          </div>
+        </div>
+      </div>
+      <div class="body" id="tab-status" style="display:none">
+        <div class="col">
+          <div class="info" style="margin-bottom:8px">
+            <h4>Raum</h4>
+            <div class="muted">Raum: <span id="roomInfo">–</span></div>
+            <div>Spieler online: <span id="onlineCount">0</span> / 2</div>
+            <div>Du: <span id="meId">–</span></div>
+            <div>Gegner: <span id="opId">–</span></div>
+            <div>Status: <span id="readyState">Warten…</span></div>
+          </div>
+          <div class="log" id="log"></div>
+        </div>
+        <div class="col" style="max-width:380px">
+          <div class="info">
+            <h4>Passiv-Reveal nach „Bereit“</h4>
+            <div class="muted">Deine Passivattacken</div>
+            <ul id="myPassives"></ul>
+            <div class="muted" style="margin-top:6px">Gegnerische Passivattacken</div>
+            <ul id="oppPassives"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
 
-    // Attacken (Teilmenge mit Tags; erweiterbar)
-    const ATTACKS = [
-      {n:"Zaubertrick"},
-      {n:"Zauberkunststück"},
-      {n:"Prestige"},
-      {n:"Meister der Magie"},
-      {n:"Alles oder nichts"},
-      {n:"Gedankenkontrolle"},
-      {n:"Feurige Waffen", t:["Einmalig","Extra"]},
-      {n:"Hartes Training"},
-      {n:"Vorbereitung"},
-      {n:"Wut", t:["Einmalig","Extra"]},
-      {n:"Messerwürfe"},
-      {n:"Letzter Wille", t:["Einmalig"]},
-      {n:"Messerstich", t:["Extra"]},
-      {n:"Verrat", t:["Schnell"]},
-      {n:"Schwertschlag"},
-      {n:"Finale", t:["Einmalig"]},
-      {n:"Heilung", t:["Super3"]},
-      {n:"Verführerisches Angebot", t:["Passiv"]},
-      {n:"Metallschild", t:["Passiv"]},
-      {n:"Schneesturm", t:["Passiv"]},
-      {n:"Schild und Schwert", t:["Schnell"]},
-      {n:"Schnell", t:["Extra","Schnell"]},
-      {n:"Schneller", t:["Extra","Zweimalig","Schnell"]},
-      {n:"Immer vorbereitet", t:["Passiv"]},
-      {n:"Zweite Chance", t:["Passiv"]}
-    ];
+<script>
+// ===== Konfiguration
+const ABLY_KEY = "3wcmYg.8GQUGA:WaFbpDvdQSDdntaxL6mBMg72Om8OcOybipf-Sbs5eRc"; // Demo sichtbar
+const CHANNEL_NS = "osja";
 
-    // Rangeleien (aus der Legende)
-    const RANGELEIEN = [
-      {n:"Gutes Auge", t:["Einmalig"]},
-      {n:"Einen Schritt voraus", t:["Zweimalig","Extra","Schnell"]},
-      {n:"Ruhe", t:["Einmalig","Schnell"]},
-      {n:"Schwertschlag"},
-      {n:"Heilung", t:["Super3"]},
-      {n:"Wachsames Auge", t:["Einmalig","Extra"]},
-      {n:"Grüne Wiese", t:["Passiv"]},
-      {n:"Schuss und Schlag"},
-      {n:"Gedankenkontrolle"},
-      {n:"Grüne Karte", t:["Einmalig","Extra"]},
-      {n:"Wieder normal", t:["Schnell"]},
-      {n:"Sandsturm"},
-      {n:"Doppelter Spott", t:["Zweimalig","Extra"]},
-      {n:"Geschwindigkeitstraining"},
-      {n:"Neu geboren", t:["Einmalig","Extra"]}
-    ];
+// ===== Daten – Attacken kompletter (aus deinem PDF-Ausschnitt). Tags & Beschreibung ergänzt
+// t: Tags (Einmalig, Zweimalig, Dreimalig, Extra, Schnell, Passiv, Super2, Super3)
+// d: Beschreibung/Regeltext
+const ATTACKS = [
+  {n:"Zaubertrick", d:"Erhalte ein zufälliges Geheimnis."},
+  {n:"Zauberkunststück", d:"Wähle eines von drei zufälligen Geheimnissen (1–7)."},
+  {n:"Prestige", t:["Einmalig"], d:"Erhalte alle in diesem Spiel ausgelösten Geheimnisse."},
+  {n:"Meister der Magie", d:"Fügt 30 × (Anzahl ausgelöster Geheimnisse) Schaden zu."},
+  {n:"Alles oder nichts", t:["Einmalig"], d:"Wähle eine deiner nicht Xmalig- und nicht Superattacken, führe sie jetzt aus, entferne sie dann. Führe sie am Ende des nächsten gegnerischen Zuges erneut aus."},
+  {n:"Gedankenkontrolle", d:"Wähle einen Gegner; er verrät seine Attacken. Wähle dann eine seiner Attacken und setze sie ein, so als würde er sie einsetzen (Xmalig-Verbrauch zählt für ihn)."},
+  {n:"Feurige Waffen", t:["Einmalig","Extra"], d:"Erhalte diesen Zug 10 Wut."},
+  {n:"Hartes Training", d:"Erhalte 10 Wut."},
+  {n:"Vorbereitung", d:"Deine nächste Attacke, die Schaden macht, verursacht +30 Schaden."},
+  {n:"Wut", t:["Einmalig","Extra"], d:"Deine nächste Attacke, die Schaden macht, verursacht +20 Schaden."},
+  {n:"Messerwürfe", d:"4×20 Schaden."},
+  {n:"Letzter Wille", t:["Einmalig"], d:"5×20 Schaden."},
+  {n:"Messerstich", t:["Extra"], d:"20 Schaden."},
+  {n:"Verrat", t:["Schnell"], d:"80 Schaden."},
+  {n:"Schwertschlag", d:"100 Schaden."},
+  {n:"Finale", t:["Einmalig"], d:"150 Schaden."},
+  {n:"Heilung", t:["Super3"], d:"Heile 100 Leben."},
+  {n:"Verführerisches Angebot", t:["Passiv"], d:"Du hast 100 Leben weniger (Max −100). Du darfst 2 Attacken mehr haben."},
+  {n:"Metallschild", t:["Passiv"], d:"Attacken des Gegners machen 10 Schaden weniger."},
+  {n:"Schneesturm", t:["Passiv"], d:"Jeder erfolgreiche Angriff im eigenen Zug: Angreifer erleidet 10 Schaden. Erfolgreiche Reaktionen im Gegnerzug: Gegner erleidet 10 Schaden."},
+  {n:"Schild und Schwert", t:["Schnell"], d:"Verhindere 50 Schaden. Füge 50 Schaden zu."},
+  {n:"Schnell", t:["Extra","Schnell"], d:"Verleihe einer deiner Attacken diesen Zug Schnell."},
+  {n:"Schneller", t:["Extra","Zweimalig","Schnell"], d:"Verleihe einer Attacke Schnell und \"Diese Attacke kann keinem Gegner Schaden machen\" (nur für Timing/Utility)."},
+  {n:"Immer vorbereitet", t:["Passiv"], d:"Wähle vor Spielbeginn 3 Rangeleien und füge sie zu deinen Attacken hinzu."},
+  {n:"Zweite Chance", t:["Passiv"], d:"Deine Einmalig-Attacken sind Zweimalig."},
 
-    // ==== UI refs
-    const $ = (id)=>document.getElementById(id);
-    const logEl=$("log"), statusEl=$("status"), roomInfoEl=$("roomInfo"), readyStateEl=$("readyState");
-    const nameEl=$("name"), codeEl=$("code"), joinBtn=$("join"), leaveBtn=$("leave");
-    const onlineCountEl=$("onlineCount"), meIdEl=$("meId"), opIdEl=$("opId");
-    const attacksWrap=$("attacks"), filterEl=$("filter"), selCountEl=$("selCount"), slotsInfoEl=$("slotsInfo");
-    const readyBtn=$("readyBtn"), clearSelBtn=$("clearSel");
-    const rangeleisWrap=$("rangeleis"), rangeleiFilterEl=$("rangeleiFilter"), rangeleiCountEl=$("rangeleiCount");
-    const oppPassivesEl=$("oppPassives"), myPassivesEl=$("myPassives");
+  {n:"Freund der Tiere", d:"Beschwöre ein 50/50 Monster."},
+  {n:"Gelbe Karte", t:["Einmalig"], d:"100 Schaden. Ist dies die genau zweite ausgespielte Gelbe Karte (beider Spieler), stattdessen 250 Schaden."},
+  {n:"Alles wird gut!", t:["Einmalig"], d:"Belebe zwei Monster wieder."},
+  {n:"Konter", t:["Schnell","Super3"], d:"Kontere eine Attacke."},
+  {n:"Zwei Wünsche", t:["Zweimalig","Schnell"], d:"Kontere eine Attacke."},
+  {n:"Bitte extra!", t:["Dreimalig","Extra","Schnell"], d:"Kontere eine Extra-Attacke (auch Super+Extra)."},
+  {n:"Langsam, aber sicher", d:"10 × (Anzahl deiner erfolgreich ausgeführten Attacken) Schaden."},
+  {n:"Lebender Baum", t:["Super2"], d:"Beschwöre ein 0/150 Monster."},
+  {n:"Lehren", d:"Verleihe einem Charakter die Attacke: \"100 Schaden\"."},
+  {n:"Karnickel", d:"Beschwöre drei 0/10 Monster."},
+  {n:"Geschenk des Lebens", d:"Verleihe allen freundlichen Monstern +50 Leben."},
+  {n:"Lebenslehre", d:"Verleihe einem Monster eine deiner nicht Xmalig- und nicht Superattacken."},
+  {n:"Lebender Schild", d:"Wähle ein freundliches Monster. Verleihe ihm Spott."},
+  {n:"Wand", t:["Zweimalig"], d:"Beschwöre ein 0/10 Monster mit Spott. Es kann nicht angreifen."},
+  {n:"Opfer", d:"Vernichte ein freundliches Monster. Alle befreundeten Charaktere erhalten seine Leben (maximale Extraleben)."},
+  {n:"Über dem Horizont", t:["Einmalig","Schnell"], d:"Erhalte 120 Leben (erhöht maximale Leben)."},
+  {n:"Wachsames Auge", t:["Einmalig","Extra","Schnell"], d:"Gegner verrät seine Attacken; wähle eine: Er kann sie 2 Züge nicht einsetzen."},
+  {n:"Geheime Mission", d:"90 Schaden. Nicht konterbar."},
+  {n:"Sicherer Schlag", d:"90 Schaden. Schaden nicht veränderbar."},
+  {n:"Sichere und geheime Mission", t:["Schnell"], d:"60 Schaden. Nicht konterbar. Schaden nicht veränderbar."},
+  {n:"Letzte Chance", t:["Einmalig"], d:"Wenn du das nächste Mal tödlichen Schaden bekämst: negiere ihn und heile 50."},
+  {n:"Spiegelschild", t:["Einmalig"], d:"Wenn du das nächste Mal durch einen Gegner Schaden bekommen würdest, bekommt stattdessen der Gegner so viel Schaden."},
+  {n:"Seelenschlag", d:"120 Schaden. Du erleidest 50 Selbstschaden."},
+  {n:"Gleichheit", d:"Gleicht die Leben deines Gegners deinen Leben an (Gegner = deine aktuellen Leben)."},
+  {n:"Waffen weg!", t:["Einmalig","Extra"], d:"Gegner führt alle seine Attacken aus; sie haben keinen Effekt (Xmalig/Super werden verbraucht)."},
+  {n:"Zyklus des Lebens", t:["Passiv"], d:"Wenn ein Monster ohne Geboren-Marke stirbt: (1) Notiere seine Werte ODER (2) belebe ein notiertes Monster mit anderen Leben mit Geboren-Marke wieder (und streiche die Notiz)."},
 
-    // ==== State
-    let client=null, channel=null; let myId=null, roomCode=null;
-    let sel = new Set();            // ausgewählte Attacken (geheim)
-    let selRangelei = new Set();    // ausgewählte 3 Rangeleien (geheim)
-    let iAmReady=false, oppReady=false;
-    let oppPassives=[]; let myPassives=[]; let revealed=false;
+  {n:"Feuerkobold", d:"Beschwöre ein 0/50 Monster mit: \"Beim Beschwören: füge einem Ziel 50 Schaden zu\"."},
+  {n:"Zellteilung", d:"Opfere eines deiner Monster. Beschwöre am Ende deines übernächsten Zuges ein Monster mit gleichen Werten ZWEIMAL."},
+  {n:"Finales Ritual", t:["Einmalig"], d:"Fügt Schaden in Höhe der gesamten Menge an Schaden zu, die du in diesem Spiel in deinem eigenen Zug erhalten hast."}
+];
 
-    function log(msg, cls=""){ const d=new Date().toLocaleTimeString(); const div=document.createElement('div'); if(cls)div.classList.add(cls); div.textContent=`[${d}] ${msg}`; logEl.appendChild(div); logEl.scrollTop=logEl.scrollHeight; }
-    const shortId=()=>Math.random().toString(36).slice(2,7);
+// Rangeleien (aus Legende)
+const RANGELEIEN = [
+  {n:"Gutes Auge", t:["Einmalig"], d:"Übernimm die Kontrolle über zwei zufällige Geheimnisse."},
+  {n:"Einen Schritt voraus", t:["Zweimalig","Extra","Schnell"], d:"Kontere eine Attacke, die eine deiner Attacken kontert."},
+  {n:"Ruhe", t:["Einmalig","Schnell"], d:"Alle Attacken machen ab jetzt 30 Schaden weniger und geben 30 Leben weniger."},
+  {n:"Schwertschlag", d:"80 Schaden."},
+  {n:"Heilung", t:["Super3"], d:"Heile 80 Leben."},
+  {n:"Wachsames Auge", t:["Einmalig","Extra"], d:"Gegner verrät dir seine Attacken."},
+  {n:"Grüne Wiese", t:["Passiv"], d:"Attacken, die nicht im eigenen Zug ausgeführt werden, verursachen 20 Schaden weniger."},
+  {n:"Schuss und Schlag", d:"Wähle x ∈ [3..7]. Füge Gegner A x×10 und Gegner B (10−x)×10 Schaden zu."},
+  {n:"Gedankenkontrolle", d:"Gegner setzt die Extra‑Attacke ein: \"Füge dir selbst 60 Schaden zu\"."},
+  {n:"Grüne Karte", t:["Einmalig","Extra"], d:"In diesem Spiel wurde eine Gelbe Karte weniger ausgespielt."},
+  {n:"Wieder normal", t:["Schnell"], d:"Zerstöre eine Passivattacke."},
+  {n:"Sandsturm", d:"Füge allen Gegnern 50 Schaden zu."},
+  {n:"Doppelter Spott", t:["Zweimalig","Extra"], d:"Verleihe beliebig vielen Gegnern Spott."},
+  {n:"Geschwindigkeitstraining", d:"Verleihe einer Attacke Schnell."},
+  {n:"Neu geboren", t:["Einmalig","Extra"], d:"Setze die Leben eines Gegners auf 500."}
+];
 
-    function hasTag(a, tag){ return (a.t||[]).includes(tag); }
-    function isPassiveName(name){ const a=ATTACKS.find(x=>x.n===name); return a && hasTag(a,'Passiv'); }
-    function allowedSlots(){ return 4 + (sel.has('Verführerisches Angebot') ? 2 : 0); }
-    function needsRangelei(){ return sel.has('Immer vorbereitet'); }
+// ===== UI & State
+const $ = (id)=>document.getElementById(id);
+const logEl=$("log"), statusEl=$("status"), roomInfoEl=$("roomInfo"), readyStateEl=$("readyState");
+const nameEl=$("name"), codeEl=$("code"), joinBtn=$("join"), leaveBtn=$("leave");
+const onlineCountEl=$("onlineCount"), meIdEl=$("meId"), opIdEl=$("opId");
+const attacksWrap=$("attacks"), filterEl=$("filter"), selCountEl=$("selCount"), slotsInfoEl=$("slotsInfo");
+const readyBtn=$("readyBtn"), clearSelBtn=$("clearSel");
+const rangeleisWrap=$("rangeleis"), rangeleiFilterEl=$("rangeleiFilter"), rangeleiCountEl=$("rangeleiCount");
+const oppPassivesEl=$("oppPassives"), myPassivesEl=$("myPassives");
+const infoPane=$("infoPane");
 
-    function updateCounters(){
-      selCountEl.textContent = `${sel.size} / ${allowedSlots()}`;
-      slotsInfoEl.textContent = sel.has('Verführerisches Angebot') ? ' (VA aktiv: +2 Slots)' : '';
-      rangeleiCountEl.textContent = `${selRangelei.size} / 3`;
-      // Ready nur, wenn Bedingungen erfüllt
-      const okAttacks = sel.size === allowedSlots();
-      const okRangelei = needsRangelei() ? selRangelei.size === 3 : true;
-      readyBtn.disabled = !client || iAmReady || !(okAttacks && okRangelei);
-      clearSelBtn.disabled = !client || iAmReady || (sel.size===0 && selRangelei.size===0);
+let client=null, channel=null; let myId=null, roomCode=null;
+let sel=new Set(); let selRangelei=new Set();
+let iAmReady=false, oppReady=false, revealed=false; let oppPassives=[], myPassives=[];
+let presencePoll=null;
+
+function log(msg, cls=""){ const d=new Date().toLocaleTimeString(); const div=document.createElement('div'); if(cls)div.classList.add(cls); div.textContent=`[${d}] ${msg}`; logEl.appendChild(div); logEl.scrollTop=logEl.scrollHeight; }
+const shortId=()=>Math.random().toString(36).slice(2,7);
+
+function hasTag(a,tag){ return (a.t||[]).includes(tag); }
+function isPassiveName(name){ const a=ATTACKS.find(x=>x.n===name); return a && hasTag(a,'Passiv'); }
+function allowedSlots(){ return 4 + (sel.has('Verführerisches Angebot') ? 2 : 0); }
+function needsRangelei(){ return sel.has('Immer vorbereitet'); }
+
+function updateCounters(){
+  selCountEl.textContent = `${sel.size} / ${allowedSlots()}`;
+  slotsInfoEl.textContent = sel.has('Verführerisches Angebot')? '(VA aktiv: +2 Slots)':'';
+  rangeleiCountEl.textContent = `${selRangelei.size} / 3`;
+  const okAttacks = sel.size === allowedSlots();
+  const okRangelei = needsRangelei() ? selRangelei.size===3 : true;
+  readyBtn.disabled = !client || iAmReady || !(okAttacks && okRangelei);
+  clearSelBtn.disabled = !client || iAmReady || (sel.size===0 && selRangelei.size===0);
+}
+
+function renderItems(target, list, selectedSet, onToggle){
+  target.innerHTML='';
+  list.forEach(a=>{
+    const row=document.createElement('div'); row.className='item';
+    const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=selectedSet.has(a.n); cb.disabled=iAmReady;
+    cb.addEventListener('change',()=>onToggle(a,cb));
+    const text=document.createElement('div');
+    const name=document.createElement('div'); name.className='name'; name.textContent=a.n; name.style.cursor='pointer';
+    name.addEventListener('click',()=>showInfo(a));
+    const tags=document.createElement('div'); tags.className='tags'; (a.t||[]).forEach(t=>{ const chip=document.createElement('span'); chip.className='tag'; chip.textContent=t; tags.appendChild(chip); });
+    text.appendChild(name); text.appendChild(tags);
+    const infoBtn=document.createElement('button'); infoBtn.className='iconbtn'; infoBtn.textContent='Info'; infoBtn.addEventListener('click',()=>showInfo(a));
+    row.appendChild(cb); row.appendChild(text); row.appendChild(infoBtn);
+    target.appendChild(row);
+  });
+}
+
+function showInfo(a){
+  infoPane.innerHTML = `<h4>${a.n}</h4>
+    <div class="muted" style="margin-bottom:6px">${(a.t||[]).map(t=>`<span class='tag'>${t}</span>`).join(' ')||'<span class="muted">(keine Tags)</span>'}</div>
+    <div>${a.d||'–'}</div>`;
+}
+
+function renderAttacks(){
+  const f=(filterEl.value||'').toLowerCase().trim();
+  const filtered=ATTACKS.filter(a=>a.n.toLowerCase().includes(f));
+  renderItems(attacksWrap, filtered, sel, (a,cb)=>{
+    if(cb.checked){
+      if(selRangelei.has(a.n)){ cb.checked=false; log('Dieser Name ist bereits als Rangelei gewählt.','warn'); return; }
+      if(sel.size>=allowedSlots()){ cb.checked=false; log('Attacken-Slots voll.','warn'); return; }
+      sel.add(a.n);
+    } else {
+      sel.delete(a.n);
+      if(a.n==='Immer vorbereitet'){ selRangelei.clear(); renderRangeleis(); }
     }
+    updateCounters();
+  });
+  updateCounters();
+}
 
-    function renderList(target, list, selectedSet, onToggle){
-      target.innerHTML='';
-      list.forEach(a=>{
-        const row=document.createElement('label'); row.className='attack';
-        const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=selectedSet.has(a.n); cb.disabled=iAmReady;
-        cb.addEventListener('change',()=>onToggle(a, cb));
-        const box=document.createElement('div');
-        const name=document.createElement('div'); name.className='name'; name.textContent=a.n;
-        const tags=document.createElement('div'); tags.className='tags'; (a.t||[]).forEach(t=>{ const chip=document.createElement('span'); chip.className='tag'; chip.textContent=t; tags.appendChild(chip); });
-        box.appendChild(name); box.appendChild(tags);
-        row.appendChild(cb); row.appendChild(box); target.appendChild(row);
-      });
-    }
+function renderRangeleis(){
+  const f=(rangeleiFilterEl.value||'').toLowerCase().trim();
+  const filtered=RANGELEIEN.filter(a=>a.n.toLowerCase().includes(f));
+  renderItems(rangeleisWrap, filtered, selRangelei, (a,cb)=>{
+    if(!needsRangelei()){ cb.checked=false; log('Rangeleien nur mit "Immer vorbereitet".','warn'); return; }
+    if(cb.checked){
+      if(sel.has(a.n)){ cb.checked=false; log('Dieser Name ist bereits als Attacke gewählt.','warn'); return; }
+      if(selRangelei.size>=3){ cb.checked=false; log('Du kannst genau 3 Rangeleien wählen.','warn'); return; }
+      selRangelei.add(a.n);
+    } else { selRangelei.delete(a.n); }
+    updateCounters();
+  });
+}
 
-    function renderAttacks(){
-      const f=(filterEl.value||'').trim().toLowerCase();
-      const filtered=ATTACKS.filter(a=>a.n.toLowerCase().includes(f));
-      renderList(attacksWrap, filtered, sel, (a, cb)=>{
-        if(cb.checked){
-          // Duplikate mit Rangeleien verhindern (gleicher Name)
-          if(selRangelei.has(a.n)) { cb.checked=false; log('Dieser Name ist bereits als Rangelei ausgewählt.', 'warn'); return; }
-          if(sel.size >= allowedSlots()) { cb.checked=false; log('Attacken-Slots voll.', 'warn'); return; }
-          sel.add(a.n);
-        } else { sel.delete(a.n); if(a.n==='Immer vorbereitet'){ selRangelei.clear(); renderRangeleis(); } }
-        renderAttacks(); // neu rendern, weil allowedSlots sich ändern kann (VA)
-        updateCounters();
-      });
-      updateCounters();
-    }
+function renderPassivesLists(){
+  myPassivesEl.innerHTML=''; oppPassivesEl.innerHTML='';
+  myPassives.forEach(n=>{ const li=document.createElement('li'); li.textContent=n; myPassivesEl.appendChild(li); });
+  oppPassives.forEach(n=>{ const li=document.createElement('li'); li.textContent=n; oppPassivesEl.appendChild(li); });
+}
 
-    function renderRangeleis(){
-      const f=(rangeleiFilterEl.value||'').trim().toLowerCase();
-      const filtered=RANGELEIEN.filter(a=>a.n.toLowerCase().includes(f));
-      renderList(rangeleisWrap, filtered, selRangelei, (a, cb)=>{
-        if(!needsRangelei()){ cb.checked=false; log('Rangeleien nur mit "Immer vorbereitet".', 'warn'); return; }
-        if(cb.checked){
-          if(sel.has(a.n)) { cb.checked=false; log('Dieser Name ist bereits als Attacke ausgewählt.', 'warn'); return; }
-          if(selRangelei.size>=3){ cb.checked=false; log('Du kannst genau 3 Rangeleien wählen.', 'warn'); return; }
-          selRangelei.add(a.n);
-        } else { selRangelei.delete(a.n); }
-        updateCounters();
-      });
-    }
+async function maybeRevealPassives(){
+  if(revealed) return;
+  const members = await channel.presence.get();
+  const bothReady = members.length===2 && members.every(m=>m.data && m.data.ready===true);
+  if(!bothReady) return;
+  revealed=true;
+  myPassives = [...sel].filter(isPassiveName);
+  await channel.publish('passives_reveal', { playerId: myId, passives: myPassives });
+  renderPassivesLists();
+  log('Passivattacken offenbart.','ok');
+}
 
-    function listPassivesFromSelection(set){
-      const arr=[...set];
-      return arr.filter(n=>isPassiveName(n));
-    }
+function setConnected(on, code=''){
+  statusEl.textContent = on ? `verbunden: ${code}` : 'offline';
+  joinBtn.disabled=on; codeEl.disabled=on; nameEl.disabled=on; leaveBtn.disabled=!on;
+  updateCounters();
+}
 
-    async function maybeRevealPassives(){
-      if(revealed) return;
-      // Prüfe beidseitig "ready"
-      const members = await channel.presence.get();
-      const bothReady = members.length===2 && members.every(m=>m.data && m.data.ready===true);
-      if(!bothReady) return;
-      revealed=true;
-      myPassives = listPassivesFromSelection(sel);
-      // veröffentliche NUR Passives
-      await channel.publish('passives_reveal', { playerId: myId, passives: myPassives });
-      renderPassivesLists();
-      log('Passivattacken offenbart.', 'ok');
-    }
+// ===== Tabs
+Array.from(document.querySelectorAll('.tab')).forEach(t=>{
+  t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.querySelectorAll('.body').forEach(b=>b.style.display='none');
+    document.getElementById('tab-'+t.dataset.tab).style.display='flex';
+  });
+});
 
-    function renderPassivesLists(){
-      myPassivesEl.innerHTML=''; oppPassivesEl.innerHTML='';
-      myPassives.forEach(n=>{ const li=document.createElement('li'); li.textContent=n; myPassivesEl.appendChild(li); });
-      oppPassives.forEach(n=>{ const li=document.createElement('li'); li.textContent=n; oppPassivesEl.appendChild(li); });
-    }
+// ===== Ably / Presence
+let onlineCountElRef = document.createElement('span'); // placeholder if not in status tab yet
 
-    function setConnected(on, code=''){
-      $("status").textContent = on ? `verbunden: ${code}` : 'offline';
-      joinBtn.disabled=on; codeEl.disabled=on; nameEl.disabled=on; leaveBtn.disabled=!on;
-      updateCounters();
-    }
+async function refreshPresence(){
+  if(!channel) return;
+  try{
+    const members = await channel.presence.get();
+    const onlineCount = (members||[]).length; (document.getElementById('onlineCount')||onlineCountElRef).textContent = String(onlineCount);
+    const opp = members.find(m=>m.clientId!==myId);
+    (document.getElementById('opId')||{}).textContent = opp?.clientId || '–';
+    oppReady = !!(opp && opp.data && opp.data.ready===true);
+    readyStateEl.textContent = iAmReady && oppReady ? 'Beide bereit (Passiv-Reveal folgt)…' : iAmReady ? 'Du bist bereit. Warte auf Gegner…' : oppReady ? 'Gegner ist bereit. Wähle deine Auswahl…' : 'Warten…';
+    await maybeRevealPassives();
+  }catch(e){ log('Presence get Fehler: '+(e?.message||e),'err'); }
+}
 
-    // ====== Ably / Lobby
-    let presencePoll=null;
+async function joinRoom(){
+  const code=(codeEl.value||'').trim().toLowerCase(); if(!code||code.length<3){ log('Bitte Code (>=3) eingeben.','warn'); return; }
+  roomCode=code; const base=(nameEl.value||'').trim()||'player'; myId=`${base}-${shortId()}`; (document.getElementById('meId')||{}).textContent=myId; (document.getElementById('roomInfo')||{}).textContent=`${CHANNEL_NS}:${roomCode}`;
+  client = new Ably.Realtime.Promise({ key: ABLY_KEY, clientId: myId });
+  client.connection.once('connected', async ()=>{
+    log('Mit Ably verbunden.','ok'); setConnected(true, roomCode);
+    channel = client.channels.get(`${CHANNEL_NS}:${roomCode}`);
+    channel.presence.subscribe(['enter','update','leave'], refreshPresence);
+    await channel.attach();
+    await channel.presence.enter({ ready:false });
+    await refreshPresence();
+    if(presencePoll) clearInterval(presencePoll); presencePoll=setInterval(refreshPresence, 3000);
+    channel.subscribe('passives_reveal', (msg)=>{ if(msg?.data?.playerId===myId) return; oppPassives = Array.isArray(msg.data.passives)? msg.data.passives : []; renderPassivesLists(); log('Gegnerische Passivattacken eingetroffen.','ok'); });
+  });
+  client.connection.on((s)=>{ if(['closed','failed','suspended','disconnected'].includes(s.current)){ setConnected(false); if(presencePoll){clearInterval(presencePoll);presencePoll=null;} } });
+}
 
-    async function refreshPresence(){
-      if(!channel) return;
-      try{
-        const members = await channel.presence.get();
-        onlineCountEl.textContent = String(members.length);
-        const opp = members.find(m=>m.clientId!==myId);
-        opIdEl.textContent = opp?.clientId || '–';
-        oppReady = !!(opp && opp.data && opp.data.ready===true);
-        readyStateEl.textContent = iAmReady && oppReady ? 'Beide bereit (Passiv-Reveal folgt)…' : iAmReady ? 'Du bist bereit. Warte auf Gegner…' : oppReady ? 'Gegner ist bereit. Wähle deine Auswahl…' : 'Warten…';
-        await maybeRevealPassives();
-      }catch(e){ log('Presence get Fehler: '+(e?.message||e),'err'); }
-    }
+async function leaveRoom(){
+  try{ if(channel) await channel.presence.leave(); }catch{}
+  try{ if(client) client.connection.close(); }catch{}
+  if(presencePoll){clearInterval(presencePoll);presencePoll=null;}
+  setConnected(false);
+  (document.getElementById('roomInfo')||{}).textContent='–'; (document.getElementById('onlineCount')||{}).textContent='0'; (document.getElementById('opId')||{}).textContent='–'; readyStateEl.textContent='Warten…';
+  iAmReady=false; oppReady=false; revealed=false; sel.clear(); selRangelei.clear(); myPassives=[]; oppPassives=[]; renderPassivesLists(); renderAttacks(); renderRangeleis(); log('Verlassen.'); client=null; channel=null; myId=null; roomCode=null;
+}
 
-    async function joinRoom(){
-      roomCode=(codeEl.value||'').trim().toLowerCase(); if(!roomCode||roomCode.length<3){ log('Bitte Code (>=3) eingeben.','warn'); return; }
-      const baseName=(nameEl.value||'').trim()||'player'; myId=`${baseName}-${shortId()}`; meIdEl.textContent=myId; roomInfoEl.textContent=`${CHANNEL_NS}:${roomCode}`;
+// ===== Events
+$("join").addEventListener('click', joinRoom);
+$("leave").addEventListener('click', leaveRoom);
+$("filter").addEventListener('input', renderAttacks);
+$("rangeleiFilter").addEventListener('input', renderRangeleis);
+$("clearSel").addEventListener('click', ()=>{ sel.clear(); selRangelei.clear(); renderAttacks(); renderRangeleis(); });
+$("readyBtn").addEventListener('click', async ()=>{
+  if(!client||!channel) return;
+  const okAttacks = sel.size === allowedSlots();
+  const okRangelei = needsRangelei()? selRangelei.size===3 : true;
+  if(!(okAttacks && okRangelei)){ log('Bitte vollständig auswählen (Slots/Rangeleien).','warn'); return; }
+  iAmReady=true;
+  await channel.presence.update({ ready:true });
+  document.querySelectorAll('.item input[type=checkbox]').forEach(cb=>cb.disabled=true);
+  $("readyBtn").disabled=true; $("clearSel").disabled=true;
+  await refreshPresence();
+});
 
-      client = new Ably.Realtime.Promise({ key: ABLY_KEY, clientId: myId });
-      client.connection.once('connected', async ()=>{
-        log('Mit Ably verbunden.','ok'); setConnected(true, roomCode);
-        channel = client.channels.get(`${CHANNEL_NS}:${roomCode}`);
-        channel.presence.subscribe(['enter','update','leave'], refreshPresence);
-        await channel.attach();
-        await channel.presence.enter({ ready:false });
-        await refreshPresence();
-        if(presencePoll) clearInterval(presencePoll); presencePoll=setInterval(refreshPresence, 3000);
-        // Nachrichten: Passiv-Reveal
-        channel.subscribe('passives_reveal', (msg)=>{
-          if(msg?.data?.playerId===myId) return; // eigene ignorieren
-          oppPassives = Array.isArray(msg.data.passives)? msg.data.passives : [];
-          renderPassivesLists();
-          log('Gegnerische Passivattacken eingetroffen.','ok');
-        });
-      });
-      client.connection.on((s)=>{ if(['closed','failed','suspended','disconnected'].includes(s.current)){ setConnected(false); if(presencePoll){clearInterval(presencePoll);presencePoll=null;} } });
-    }
+// ===== Initial Render
+renderAttacks(); renderRangeleis(); updateCounters();
 
-    async function leaveRoom(){
-      try{ if(channel) await channel.presence.leave(); }catch{}
-      try{ if(client) client.connection.close(); }catch{}
-      if(presencePoll){clearInterval(presencePoll); presencePoll=null;}
-      setConnected(false);
-      roomInfoEl.textContent='Kein Raum'; onlineCountEl.textContent='0'; opIdEl.textContent='–'; readyStateEl.textContent='Warten…';
-      iAmReady=false; oppReady=false; revealed=false; sel.clear(); selRangelei.clear(); myPassives=[]; oppPassives=[]; renderPassivesLists();
-      renderAttacks(); renderRangeleis();
-      log('Verlassen.'); client=null; channel=null; myId=null; roomCode=null;
-    }
-
-    // ====== UI Events
-    $("join").addEventListener('click', joinRoom);
-    $("leave").addEventListener('click', leaveRoom);
-    filterEl.addEventListener('input', renderAttacks);
-    rangeleiFilterEl.addEventListener('input', renderRangeleis);
-    clearSelBtn.addEventListener('click', ()=>{ sel.clear(); selRangelei.clear(); renderAttacks(); renderRangeleis(); });
-
-    readyBtn.addEventListener('click', async ()=>{
-      if(!client||!channel) return;
-      const okAttacks = sel.size === allowedSlots();
-      const okRangelei = needsRangelei()? selRangelei.size===3 : true;
-      if(!(okAttacks && okRangelei)){ log('Bitte vollständig auswählen (Slots/Rangeleien).','warn'); return; }
-      iAmReady=true;
-      // Geheimhaltung: Wir senden NUR ready=true
-      await channel.presence.update({ ready:true });
-      // UI sperren
-      document.querySelectorAll('.attack input[type=checkbox]').forEach(cb=>cb.disabled=true);
-      readyBtn.disabled=true; clearSelBtn.disabled=true;
-      await refreshPresence();
-    });
-
-    // Initial
-    renderAttacks(); renderRangeleis(); updateCounters();
-    window.addEventListener('beforeunload', ()=>{ try{ if(channel) channel.presence.leave(); }catch{} try{ if(client) client.connection.close(); }catch{} if(presencePoll){clearInterval(presencePoll); presencePoll=null;} });
-  </script>
+// ===== Cleanup
+window.addEventListener('beforeunload', ()=>{ try{ if(channel) channel.presence.leave(); }catch{} try{ if(client) client.connection.close(); }catch{} if(presencePoll){clearInterval(presencePoll);presencePoll=null;} });
+</script>
 </body>
 </html>
