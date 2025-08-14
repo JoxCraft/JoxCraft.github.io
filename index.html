@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>OsJa – 2-Spieler Match & Attacken wählen</title>
 
-  <!-- Ably JS SDK -->
+  <!-- Ably JS SDK v1 (enthält Callback- & Promise-API). Wir nutzen die Promise-Variante. -->
   <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
 
   <style>
@@ -27,7 +27,6 @@
     .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)}
     .attacks { display:grid; grid-template-columns: repeat(auto-fill,minmax(220px,1fr)); gap:8px; margin-top:12px; }
     .attack { display:flex; align-items:center; gap:8px; padding:8px; border:1px solid var(--line); border-radius:10px; background:#0f1420; }
-    .footer { margin-top:10px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
     .small { color:var(--muted); font-size:12px; }
     .pill { padding:2px 8px; border:1px solid var(--line); border-radius:999px; background:#0f1420; font-size:12px; }
     .two-col { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
@@ -90,7 +89,7 @@
   </div>
 
   <script>
-    const ABLY_KEY = "3wcmYg.8GQUGA:WaFbpDvdQSDdntaxL6mBMg72Om8OcOybipf-Sbs5eRc";
+    const ABLY_KEY = "3wcmYg.8GQUGA:WaFbpDvdQSDdntaxL6mBMg72Om8OcOybipf-Sbs5eRc"; // Demo-Key sichtbar
     const CHANNEL_NS = "osja";
 
     const ALL_ATTACKS = [
@@ -180,36 +179,52 @@
         oppListEl.appendChild(li);
       });
     }
-    function opponentId(members) {
+    function pickOpponentId(members) {
       const others = members.filter(m => m.clientId !== myId);
       return others[0]?.clientId || null;
     }
 
+    // Liefert Präsenz-Mitglieder robust – egal ob Promise- oder Callback-/Paginated-Ergebnis
+    async function getMembersSafe() {
+      try {
+        const res = await channel.presence.get();
+        if (Array.isArray(res)) return res;          // Realtime Presence: Array<PresenceMessage>
+        if (res && Array.isArray(res.items)) return res.items; // PaginatedResult
+        return [];
+      } catch (e) {
+        // Fallback: Callback-API benutzen, falls Promise-API nicht aktiv ist
+        return await new Promise((resolve) => {
+          channel.presence.get((err, members) => {
+            if (err) { log("Presence get Fehler: "+(err.message||err), "err"); resolve([]); return; }
+            if (Array.isArray(members)) resolve(members);
+            else if (members && Array.isArray(members.items)) resolve(members.items);
+            else resolve([]);
+          });
+        });
+      }
+    }
+
     async function refreshPresence() {
       if (!channel) return;
-      try {
-        const members = await channel.presence.get();
-        onlineCountEl.textContent = String(members.length);
-        const oppId = opponentId(members);
-        opIdEl.textContent = oppId || "–";
+      const members = await getMembersSafe();
+      onlineCountEl.textContent = String(members.length);
+      const oppId = pickOpponentId(members);
+      opIdEl.textContent = oppId || "–";
 
-        const oppMember = members.find(m => m.clientId === oppId);
-        if (oppMember?.data) {
-          oppReady = !!oppMember.data.ready;
-          oppSelection = Array.isArray(oppMember.data.selected) ? oppMember.data.selected : [];
-        } else {
-          oppReady = false;
-          oppSelection = [];
-        }
-        renderOpponentList();
-
-        readyStateEl.textContent = iAmReady && oppReady ? "Beide bereit! 🎉" :
-                                   iAmReady ? "Du bist bereit. Warte auf Gegner…" :
-                                   oppReady ? "Gegner ist bereit. Wähle deine 4!" :
-                                              "Warten auf beide Auswahlen…";
-      } catch (e) {
-        log("Presence get fehlgeschlagen: " + (e?.message || e), "err");
+      const oppMember = members.find(m => m.clientId === oppId);
+      if (oppMember?.data) {
+        oppReady = !!oppMember.data.ready;
+        oppSelection = Array.isArray(oppMember.data.selected) ? oppMember.data.selected : [];
+      } else {
+        oppReady = false;
+        oppSelection = [];
       }
+      renderOpponentList();
+
+      readyStateEl.textContent = iAmReady && oppReady ? "Beide bereit! 🎉" :
+                                 iAmReady ? "Du bist bereit. Warte auf Gegner…" :
+                                 oppReady ? "Gegner ist bereit. Wähle deine 4!" :
+                                            "Warten auf beide Auswahlen…";
     }
 
     async function joinRoom() {
@@ -223,7 +238,8 @@
       meIdEl.textContent = myId;
       roomInfoEl.textContent = `${CHANNEL_NS}:${roomCode}`;
 
-      client = new Ably.Realtime({ key: ABLY_KEY, clientId: myId });
+      // WICHTIG: Promise-Variante der SDK benutzen
+      client = new Ably.Realtime.Promise({ key: ABLY_KEY, clientId: myId });
 
       client.connection.once("connected", async () => {
         log("Mit Ably verbunden.", "ok");
@@ -231,38 +247,48 @@
 
         channel = client.channels.get(`${CHANNEL_NS}:${roomCode}`);
 
-        channel.presence.subscribe(["enter","update","leave"], async () => {
+        // Presence-Events
+        channel.presence.subscribe(["enter","update","leave"], async (msg) => {
+          log(`Presence: ${msg.action} (${msg.clientId || "anon"})`);
           await refreshPresence();
         });
 
-        channel.attach(async (err) => {
-          if (err) {
-            log("Fehler beim Attach: " + err.message, "err");
-            return;
-          }
-          try {
-            await channel.presence.enter({ ready:false, selected:[] });
-          } catch (e) {
-            log("Presence enter fehlgeschlagen: " + (e?.message || e), "err");
-          }
-          await refreshPresence();
-          if (presencePoll) clearInterval(presencePoll);
-          presencePoll = setInterval(refreshPresence, 3000);
-        });
+        // Attach (Promise-API)
+        try {
+          await channel.attach();
+          log("Kanal attached.", "ok");
+        } catch (e) {
+          log("Fehler beim Attach: " + (e?.message || e), "err");
+          return;
+        }
+
+        // Presence betreten (Promise-API)
+        try {
+          await channel.presence.enter({ ready:false, selected:[] });
+          log("Presence enter ok.", "ok");
+        } catch (e) {
+          log("Presence enter fehlgeschlagen: " + (e?.message || e), "err");
+        }
+
+        await refreshPresence();
+
+        // Fallback-Polling
+        if (presencePoll) clearInterval(presencePoll);
+        presencePoll = setInterval(refreshPresence, 3000);
       });
 
       client.connection.on((stateChange) => {
+        log(`Conn: ${stateChange.previous || "–"} → ${stateChange.current}`);
         if (["disconnected","suspended","closed","failed"].includes(stateChange.current)) {
           setConnected(false);
           if (presencePoll) { clearInterval(presencePoll); presencePoll = null; }
-          log(`Verbindung: ${stateChange.current}`, stateChange.current === "closed" ? "warn" : "err");
         }
       });
     }
 
     async function leaveRoom() {
-      try { if (channel) await channel.presence.leave(); } catch {}
-      try { if (client) client.connection.close(); } catch {}
+      try { if (channel) await channel.presence.leave(); } catch(e){ log("Presence leave Fehler: "+(e?.message||e),"err"); }
+      try { if (client) client.connection.close(); } catch(e){ log("Close Fehler: "+(e?.message||e),"err"); }
       if (presencePoll) { clearInterval(presencePoll); presencePoll = null; }
       setConnected(false);
       roomInfoEl.textContent = "Kein Raum";
@@ -278,12 +304,13 @@
       client = null; channel = null; myId = null; roomCode = null;
     }
 
-    joinBtn.addEventListener("click", joinRoom);
-    leaveBtn.addEventListener("click", leaveRoom);
-    filterEl.addEventListener("input", () => renderAttacks(filterEl.value));
-    clearSelBtn.addEventListener("click", () => { mySelection.clear(); renderAttacks(filterEl.value); });
+    // UI-Events
+    document.getElementById("join").addEventListener("click", joinRoom);
+    document.getElementById("leave").addEventListener("click", leaveRoom);
+    document.getElementById("filter").addEventListener("input", () => renderAttacks(document.getElementById("filter").value));
+    document.getElementById("clearSel").addEventListener("click", () => { mySelection.clear(); renderAttacks(document.getElementById("filter").value); });
 
-    readyBtn.addEventListener("click", async () => {
+    document.getElementById("readyBtn").addEventListener("click", async () => {
       if (!client || !channel) return;
       if (mySelection.size !== 4) { log("Wähle genau 4 Attacken.", "warn"); return; }
       iAmReady = true;
@@ -295,13 +322,15 @@
         log("Presence update fehlgeschlagen: " + (e?.message || e), "err");
       }
       document.querySelectorAll(".attack input[type=checkbox]").forEach(cb => cb.disabled = true);
-      readyBtn.disabled = true;
-      clearSelBtn.disabled = true;
+      document.getElementById("readyBtn").disabled = true;
+      document.getElementById("clearSel").disabled = true;
       await refreshPresence();
     });
 
+    // Initial
     renderAttacks();
 
+    // Cleanup
     window.addEventListener("beforeunload", () => {
       try { if (channel) channel.presence.leave(); } catch {}
       try { if (client) client.connection.close(); } catch {}
