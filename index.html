@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>OsJa – Matchmaking (ohne Backend)</title>
+  <title>OsJa – Matchmaking (Ably)</title>
   <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
   <style>
-    body { font-family: system-ui, sans-serif; background:#0b0f14; color:#e6eef7; margin:0; }
-    .wrap { max-width: 780px; margin: 6rem auto; padding: 0 1rem; }
-    .card { background:#121822; border:1px solid #1f2937; border-radius:12px; padding:24px; }
-    h1 { margin:0 0 8px; } .sub{color:#94a3b8;margin-top:0}
+    body{font-family:system-ui,sans-serif;background:#0b0f14;color:#e6eef7;margin:0}
+    .wrap{max-width:760px;margin:6rem auto;padding:0 1rem}
+    .card{background:#121822;border:1px solid #1f2937;border-radius:12px;padding:24px}
+    h1{margin:0 0 8px}.sub{color:#94a3b8;margin-top:0}
     .row{display:flex;gap:12px;margin:16px 0}
     input{flex:1;padding:12px;border-radius:10px;border:1px solid #334155;background:#0f1420;color:#e6eef7}
     button{padding:12px 16px;border-radius:10px;border:0;background:#2563eb;color:#fff;font-weight:600;cursor:pointer}
@@ -24,16 +24,19 @@
   <div class="wrap">
     <div class="card">
       <h1>OsJa – Spiel beitreten</h1>
-      <p class="sub">Gib denselben Code ein wie dein Mitspieler. Bei zwei Leuten im selben Code startet das Match.</p>
+      <p class="sub">Gib denselben Code ein wie dein Mitspieler. Sobald 2 im Raum sind, startet das Match.</p>
+
       <div class="row">
         <input id="code" placeholder="z. B. osja-123" maxlength="32" />
         <button id="join">Beitreten</button>
         <button id="leave" class="secondary" disabled>Verlassen</button>
       </div>
+
       <div class="grid">
         <div><span class="badge" id="status">offline</span></div>
-        <div style="text-align:right"><button id="ready" class="secondary" disabled>Bereit</button></div>
+        <div style="text-align:right">Spieler im Raum: <span id="count">0</span></div>
       </div>
+
       <h3>Log</h3>
       <div id="log" class="log"></div>
     </div>
@@ -42,87 +45,103 @@
 <script>
 const logEl = document.getElementById("log");
 const statusEl = document.getElementById("status");
-const codeEl = document.getElementById("code");
-const joinBtn = document.getElementById("join");
+const countEl  = document.getElementById("count");
+const codeEl   = document.getElementById("code");
+const joinBtn  = document.getElementById("join");
 const leaveBtn = document.getElementById("leave");
-const readyBtn = document.getElementById("ready");
 
-function log(msg, cls=""){ const t=new Date().toLocaleTimeString();
+function log(msg, cls=""){const t=new Date().toLocaleTimeString();
   const d=document.createElement("div"); if(cls) d.classList.add(cls);
-  d.textContent=`[${t}] ${msg}`; logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight; }
+  d.textContent=`[${t}] ${msg}`; logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight;}
 
-let ably = null, channel = null, myId = null, joined = false;
+let ably=null, channel=null, joined=false, matchStarted=false;
 
-function setStatus(s){ statusEl.textContent = s; }
-function setUiConnected(on){
-  joinBtn.disabled = on; codeEl.disabled = on; leaveBtn.disabled = !on; readyBtn.disabled = !on;
-  setStatus(on ? "verbunden" : "offline");
+function setUi(connected){
+  joinBtn.disabled = connected;
+  codeEl.disabled  = connected;
+  leaveBtn.disabled= !connected;
+  statusEl.textContent = connected ? "verbunden" : "offline";
 }
 
-async function join() {
-  const code = (codeEl.value||"").trim().toLowerCase();
-  if (!code || code.length < 3) { log("Bitte Code mit mind. 3 Zeichen.", "warn"); return; }
+async function getMemberCount(){
+  try {
+    const members = await channel.presence.get();
+    countEl.textContent = members.length;
+    return members.length;
+  } catch(e){ log("Presence get() fehlgeschlagen: "+e.message, "err"); return 0; }
+}
 
-  // 1) Ably verbinden
-  ably = new Ably.Realtime.Promise({ key: "3wcmYg.8GQUGA:WaFbpDvdQSDdntaxL6mBMg72Om8OcOybipf-Sbs5eRc" });
-  await new Promise((res, rej)=> ably.connection.once("connected", res));
-  myId = ably.deviceId || Math.random().toString(36).slice(2);
+async function maybeStartMatch(){
+  const n = await getMemberCount();
+  if (n === 2 && !matchStarted){
+    matchStarted = true;
+    log("🟢 Zwei Spieler gefunden – Match kann starten!", "ok");
+    channel.publish("matchStart", { t: Date.now() });
+  }
+}
+
+async function join(){
+  const code = (codeEl.value||"").trim().toLowerCase();
+  if (!code || code.length < 3){ log("Bitte Code mit mind. 3 Zeichen eingeben.", "warn"); return; }
+
+  // 1) Ably verbinden (KEY EINTRAGEN!)
+  try{
+    ably = new Ably.Realtime.Promise({ key: "3wcmYg.8GQUGA:WaFbpDvdQSDdntaxL6mBMg72Om8OcOybipf-Sbs5eRc" });
+  }catch(e){ log("Ably init fehlgeschlagen: "+e.message, "err"); return; }
+
+  ably.connection.on("failed", ()=> log("Verbindung fehlgeschlagen.", "err"));
+  ably.connection.on("disconnected", ()=> log("Verbindung getrennt.", "warn"));
+
+  await new Promise(res => ably.connection.once("connected", res));
   log("Mit Ably verbunden.", "ok");
 
-  // 2) Channel beitreten (Code = Raumname)
-  channel = ably.channels.get(`osja:${code}`);
-  // Presence beitreten, damit wir wissen, wie viele drin sind
-  await channel.presence.enter({ id: myId, ready:false });
-  setUiConnected(true);
-  joined = true;
+  // 2) Channel + attach
+  channel = ably.channels.get("osja:"+code);
+  await channel.attach();
+  log("Channel attached: osja:"+code, "ok");
 
-  // 3) Beobachten wie viele Spieler da sind
-  async function checkMatch() {
-    const members = await channel.presence.get();
-    const ids = members.map(m=>m.clientId || m.id);
-    log(`Spieler im Raum: ${ids.join(", ")}`);
-    if (members.length === 2) {
-      log("🟢 Zwei Spieler gefunden – Match kann starten!", "ok");
-      channel.publish("matchStart", { players: ids });
-    } else if (members.length > 2) {
-      log("Raum ist voll – bitte anderen Code verwenden.", "warn");
-    }
+  // 3) Presence betreten
+  try{
+    await channel.presence.enter({ joinedAt: Date.now() });
+    log("Presence betreten.", "ok");
+  }catch(e){
+    log("Presence enter fehlgeschlagen: "+e.message, "err");
+    return;
   }
 
-  channel.presence.subscribe(() => checkMatch());
-  await checkMatch();
+  setUi(true); joined = true;
 
-  // 4) Nachrichten
-  channel.subscribe("matchStart", msg => {
-    log("Signal: matchStart → UI/Spiel laden…", "ok");
-    // Hier später Spiel-UI initialisieren
+  // 4) Live-Updates: Presence
+  channel.presence.subscribe(["enter","leave","update"], async ()=> {
+    await getMemberCount();
+    await maybeStartMatch();
   });
 
-  readyBtn.onclick = () => {
-    channel.publish("ready", { id: myId });
-    log("→ Ich bin bereit.");
-  };
-  channel.subscribe("ready", msg => {
-    log(`← Spieler bereit: ${msg.data.id}`);
-  });
+  // Initial prüfen
+  await getMemberCount();
+  await maybeStartMatch();
 
-  // Optional: Heartbeat/Debug
-  setInterval(()=> channel.publish("ping", { t: Date.now() }), 15000);
-  channel.subscribe("ping", ()=> {});
+  // 5) „matchStart“ hören (falls der andere es zuerst sendet)
+  channel.subscribe("matchStart", () => {
+    if (!matchStarted){
+      matchStarted = true;
+      log("🟢 MatchStart empfangen.", "ok");
+    }
+  });
 }
 
-async function leave() {
-  try {
-    if (channel && joined) await channel.presence.leave();
-    if (ably) ably.close();
-  } catch {}
-  joined = false; channel=null; ably=null; myId=null;
-  log("Verlassen.", "warn"); setUiConnected(false);
+async function leave(){
+  try{ if (channel && joined) await channel.presence.leave(); }catch(e){}
+  try{ if (channel) await channel.detach(); }catch(e){}
+  try{ if (ably) ably.close(); }catch(e){}
+  joined=false; matchStarted=false; channel=null; ably=null;
+  countEl.textContent = "0";
+  setUi(false); log("Verlassen.", "warn");
 }
 
 joinBtn.addEventListener("click", join);
 leaveBtn.addEventListener("click", leave);
-setUiConnected(false);
+setUi(false);
 </script>
 </body>
 </html>
