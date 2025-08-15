@@ -451,12 +451,6 @@ function gotoStep(idx){
   renderReviewLists();
   updateCounters();
 }
-  prevBtn.disabled = currentStep===0;
-  nextBtn.textContent = currentStep===3 ? "Fertig" : "Weiter →";
-  // Review auffrischen
-  renderReviewLists();
-  updateCounters();
-}
 
 stepper.addEventListener('click', (e)=>{
   const el=e.target.closest('.step'); if(!el) return;
