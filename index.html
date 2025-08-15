@@ -336,7 +336,9 @@ const stepRangeleiEl=$("stepRangelei");
 const nextBtn=$("nextBtn"), prevBtn=$("prevBtn");
 const rangeleiGate=document.getElementById('rangeleiGate'), rangeleiHint=document.getElementById('rangeleiHint');
 
-/* ==== State ==== */
+// ... deine State-Variablen ...
+let switchingToBattle = false;   // ich wechsle jetzt nach battle.html
+let oppSwitchingToBattle = false; // Gegner wechselt nach battle.html (Signal empfangen)
 let lastOppId = null;
 let hadOpponent = false;
 let client=null, channel=null; let myId=null, roomCode=null;
@@ -420,9 +422,19 @@ function saveGameStateAndGo() {
   const state = buildGameState();
   const key = `osja_game_${roomCode || 'default'}`;
   sessionStorage.setItem(key, JSON.stringify(state));
+
+  // --- NEU: Markiere "ich wechsle" & sag dem Gegner Bescheid
+  switchingToBattle = true;
+  try {
+    channel?.publish('battle_starting', { playerId: myId, room: roomCode, ts: Date.now() });
+    // Optional, nice-to-have: Presence-Statusphase updaten (kein Leave!)
+    channel?.presence.update({ ready: true, phase: 'battle' }).catch(()=>{});
+  } catch {}
+
   const q = roomCode ? `?room=${encodeURIComponent(roomCode)}` : '';
   window.location.href = `battle.html${q}`;
 }
+
 /* ====== Ende NEU ====== */
 
 function renderAttackCard(a){
@@ -728,6 +740,20 @@ async function joinRoom(){
       tryResolveStarter();
     });
 
+    channel.subscribe('battle_starting', (msg)=>{
+  if (msg?.data?.playerId === myId) return; // meine eigene Nachricht ignorieren
+  oppSwitchingToBattle = true;
+  log('Gegner wechselt in den Kampf…', 'ok');
+
+  // Wenn bei uns schon alles ready ist (Passiv-Reveal erfolgt + Starter bestimmt),
+  // kannst du hier sogar automatisch mitwechseln:
+  if (revealed && starter) {
+    // nur speichern, nicht erneut publishen (Flag setzt saveGameStateAndGo)
+    saveGameStateAndGo();
+  }
+});
+
+
   });
   client.connection.on((s)=>{ if(['closed','failed','suspended','disconnected'].includes(s.current)){ setConnected(false); if(presencePoll){clearInterval(presencePoll); presencePoll=null;} } });
 }
@@ -887,7 +913,21 @@ $("sendPayBtn")?.addEventListener('click', async ()=>{
 renderAttacks(); renderRangeleis(); renderReviewLists(); updateCounters(); gotoStep(0);
 
 // Cleanup
-window.addEventListener('beforeunload', ()=>{ try{ if(channel) channel.presence.leave(); }catch{} try{ if(client) client.connection.close(); }catch{} });
+window.addEventListener('beforeunload', ()=>{
+  try {
+    if (channel) {
+      // WICHTIG: Beim Wechsel in den Kampf NICHT aktiv leaven,
+      // sonst triggert das beim Gegner sofort den Reset.
+      if (!switchingToBattle) {
+        channel.presence.leave().catch(()=>{});
+      } else {
+        // Optional: Phase setzen (s. oben). Kein Leave!
+        channel.presence.update({ ready:true, phase:'battle' }).catch(()=>{});
+      }
+    }
+  } catch {}
+  try { if (client) client.connection.close(); } catch {}
+});
 </script>
 </body>
 </html>
