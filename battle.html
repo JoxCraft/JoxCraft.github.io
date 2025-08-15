@@ -577,3 +577,546 @@ function applyFromShared(payload, v){
 </script>
 </body>
 </html>
+    .side{border:1px dashed var(--line);border-radius:12px;padding:10px;background:rgba(255,255,255,.02)}
+    .side h3{margin:4px 0 8px;font-size:14px;display:flex;gap:8px;align-items:center;justify-content:space-between}
+    .unit{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#0f1420;border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px;cursor:pointer;transition:transform .05s ease}
+    .unit:hover{transform:translateY(-1px)}
+    .unit.sel{outline:2px solid var(--accent);box-shadow:0 0 0 3px rgba(96,165,250,.15) inset}
+    .hp{font-family:ui-monospace,Menlo,monospace}
+    .pill{border:1px solid var(--line);border-radius:999px;padding:2px 8px;font-size:12px;background:#0b0f14}
+    .grid2{display:grid;grid-template-columns:1fr;gap:6px}
+
+    /* Right panel */
+    .atklist{max-height:42vh;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:6px;background:#0f1420}
+    .atk{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px;border-bottom:1px solid #0e1420}
+    .atk:last-child{border-bottom:0}
+    .small{font-size:12px;color:var(--muted)}
+    .footer{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:10px}
+    .warnb{color:var(--warn)}
+
+    button,select,input{background:#0f1420;color:#e6eef7;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:14px}
+    button.primary{background:#2563eb;border:0}
+    button:disabled{opacity:.6;cursor:not-allowed}
+
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <h1>OsJa – Battle</h1>
+      <div class="row">
+        <a href="index.html">← Zurück</a>
+        <span class="pill" id="turnInfo">Priority: –</span>
+        <span class="pill" id="syncInfo">Offline</span>
+      </div>
+    </div>
+
+    <div class="cols">
+      <!-- LEFT: LOG -->
+      <div class="panel">
+        <h2>Game Log</h2>
+        <div class="log" id="log"></div>
+      </div>
+
+      <!-- MIDDLE: BOARD -->
+      <div class="panel">
+        <h2>Spielfeld</h2>
+        <div class="board">
+          <div class="side" id="meSide">
+            <h3>
+              <span>Du</span>
+              <span>
+                <span class="pill hp" id="meHpPill">–</span>
+                <span class="pill" id="meRage">Wut: 0</span>
+              </span>
+            </h3>
+            <div class="unit" id="meChar"></div>
+            <div class="grid2" style="margin-top:6px">
+              <div>
+                <div class="row" style="justify-content:space-between"><b>Deine Monster</b></div>
+                <div id="myMonsters"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="side" id="oppSide">
+            <h3>
+              <span>Gegner</span>
+              <span>
+                <span class="pill hp" id="oppHpPill">–</span>
+                <span class="pill" id="oppRage">Wut: 0</span>
+              </span>
+            </h3>
+            <div class="unit" id="oppChar"></div>
+            <div class="grid2" style="margin-top:6px">
+              <div>
+                <div class="row" style="justify-content:space-between"><b>Gegnerische Monster</b></div>
+                <div id="oppMonsters"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="muted" style="margin-top:6px">Tipp: Klicke auf dich/deine Monster, wähle rechts eine Attacke und unten „Fertig“.</div>
+      </div>
+
+      <!-- RIGHT: ACTIONS -->
+      <div class="panel">
+        <h2>Aktionen</h2>
+        <div class="muted" id="selInfo">Kein Ziel/Charakter ausgewählt.</div>
+
+        <div style="margin:8px 0">
+          <div class="atklist" id="atkList"></div>
+        </div>
+
+        <div class="row">
+          <label>Target:
+            <select id="targetSel"></select>
+          </label>
+        </div>
+
+        <div class="footer">
+          <div class="row">
+            <button id="passBtn" class="secondary">Passen</button>
+          </div>
+          <div class="row">
+            <button id="commitBtn" class="primary">Fertig</button>
+          </div>
+        </div>
+
+        <div class="muted" style="margin-top:8px">
+          Priority: Nur der Spieler mit Priority darf ausführen/passen. Danach wechselt Priority.
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/*************************
+ *  MULTIPLAYER SYNC     *
+ *************************/
+const params = new URLSearchParams(location.search);
+const room = params.get('room') || 'default';
+const storeKey = `osja_room_${room}`;          // <— jetzt localStorage (tab-übergreifend)
+const clientId = `${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+let lastSeenVersion = 0;
+
+function saveSharedState(payload){
+  const pack = { v: (lastSeenVersion+1), by: clientId, ts: Date.now(), payload };
+  localStorage.setItem(storeKey, JSON.stringify(pack));
+  lastSeenVersion = pack.v;
+  updateSyncBadge(true);
+}
+
+function readSharedState(){
+  const raw = localStorage.getItem(storeKey);
+  if(!raw) return null;
+  try{ return JSON.parse(raw); }catch(e){ return null; }
+}
+
+window.addEventListener('storage', (ev)=>{
+  if(ev.key !== storeKey || !ev.newValue) return;
+  const pack = JSON.parse(ev.newValue);
+  if(pack.by === clientId) return; // Eigene Writes ignorieren
+  applyFromShared(pack.payload, pack.v);
+});
+
+function updateSyncBadge(ok){
+  const el = document.getElementById('syncInfo');
+  el.textContent = ok ? 'Verbunden' : 'Offline';
+  el.style.background = ok ? 'rgba(134,239,172,.1)' : '';
+}
+
+/*************************
+ *  GAME BOOTSTRAP       *
+ *************************/
+// Erwartet: auf der Auswahl-Seite wurde unter osja_game_<room> gespeichert
+const selKey = `osja_game_${room}`;
+const rawSel = sessionStorage.getItem(selKey);
+if(!rawSel){ alert('Kein Game-State gefunden. Zurück zur Auswahl.'); location.href = 'index.html'; }
+const gs = JSON.parse(rawSel);
+
+const meStart = Number(gs.life?.myStartLife||500) - Number(gs.life?.myPay||0);
+const oppHadVA = (gs.passives?.opp||[]).includes('Verführerisches Angebot');
+const oppStartBase = oppHadVA ? 400 : 500;
+const oppStart = oppStartBase - Number(gs.life?.oppPay||0);
+
+// eigene bekannte Attacken (aus Auswahl)
+const myKnownAttacks = new Set(gs.selections?.attacks || []);
+
+/*************************
+ *  CORE MODEL           *
+ *************************/
+let idSeq = 1; const newId = () => `id_${idSeq++}`;
+
+const state = {
+  version: 0,
+  priority: gs.life?.starter === 'me' ? 'me' : 'opp',
+  me: { id:'me', name: gs.myId || 'Du', hp: meStart, maxHp: meStart, rage: 0, nextDamageBonus: 0,
+        passives: new Set(gs.passives?.me || []), knownAttacks: new Set(myKnownAttacks), mods:{ dmgTakenFlatMinus:0 } },
+  opp:{ id:'opp', name: gs.oppId || 'Gegner', hp: oppStart, maxHp: oppStartBase, rage:0, nextDamageBonus:0,
+        passives: new Set(gs.passives?.opp || []), knownAttacks: new Set(gs.passives?.opp || []), mods:{ dmgTakenFlatMinus:0 } },
+  myMonsters: [],
+  oppMonsters: [],
+  locks: {}, // z.B. Attack-Locks (Wachsames Auge)
+  selection: { actor:null, action:null, target:null }
+};
+
+if (state.me.passives.has('Metallschild')) state.me.mods.dmgTakenFlatMinus += 10;
+if (state.opp.passives.has('Metallschild')) state.opp.mods.dmgTakenFlatMinus += 10;
+
+/*************************
+ *  LOGGING              *
+ *************************/
+const logEl = document.getElementById('log');
+function logLine({who='sys', text='', cls=''}){
+  const div = document.createElement('div');
+  div.className = `it ${cls}`;
+  const tag = document.createElement('span');
+  tag.className = `tag ${who==='me'?'me':who==='opp'?'opp':'sys'}`;
+  tag.textContent = who==='me' ? '[ME]' : who==='opp' ? '[OPP]' : '[SYS]';
+  div.appendChild(tag);
+  const span = document.createElement('span');
+  span.innerHTML = text;
+  div.appendChild(span);
+  logEl.appendChild(div);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function logDamage(who, fromName, toName, amt){ logLine({who, text:`<span class="dmg">-${amt} HP</span> ${toName} durch <b>${fromName}</b>.`}); }
+function logHeal(who, targetName, amt){ logLine({who, text:`<span class="heal">+${amt} HP</span> für <b>${targetName}</b>.`}); }
+function logGainLife(who, targetName, amt){ logLine({who, text:`<span class="heal">+${amt} Max-HP</span> & HP für <b>${targetName}</b>.`}); }
+
+/*************************
+ *  RENDER               *
+ *************************/
+const $ = (id)=>document.getElementById(id);
+const meHpPill = $("meHpPill"), oppHpPill = $("oppHpPill"), meRage = $("meRage"), oppRage = $("oppRage"), turnInfo = $("turnInfo");
+const meChar = $("meChar"), oppChar = $("oppChar"), myMonWrap = $("myMonsters"), oppMonWrap = $("oppMonsters");
+const atkList = $("atkList"), selInfo = $("selInfo"), targetSel = $("targetSel"), commitBtn = $("commitBtn"), passBtn = $("passBtn");
+
+function fmtHP(u){ return `${u.hp}/${u.maxHp}`; }
+function renderHpBars(){ meHpPill.textContent = fmtHP(state.me); oppHpPill.textContent = fmtHP(state.opp); meRage.textContent = `Wut: ${state.me.rage}`; oppRage.textContent = `Wut: ${state.opp.rage}`; }
+function renderPriority(){ turnInfo.textContent = `Priority: ${state.priority==='me'?'Du':'Gegner'}`; commitBtn.disabled = !(state.priority==='me' && state.selection.actor && state.selection.action && isOwn(state.selection.actor)); passBtn.disabled = !(state.priority==='me'); }
+
+function unitBox(u, sel){ return `<div><b>${u.name}</b>${u.taunt?' <span class="pill">Spott</span>':''}${u.atk>0&&u.side?` <span class="pill">ATK ${u.atk}</span>`:''}</div><div class="hp">${fmtHP(u)}</div>`; }
+
+function renderUnits(){
+  meChar.innerHTML = unitBox({...state.me, side:'me'}, state.selection.actor==='me');
+  meChar.className = 'unit'+(state.selection.actor==='me'?' sel':'');
+  meChar.onclick = ()=>selectActor('me');
+
+  oppChar.innerHTML = unitBox({...state.opp, side:'opp'}, state.selection.actor==='opp');
+  oppChar.className = 'unit'+(state.selection.actor==='opp'?' sel':'');
+  oppChar.onclick = ()=>selectActor('opp');
+
+  myMonWrap.innerHTML='';
+  state.myMonsters.forEach(m=>{
+    const d=document.createElement('div');
+    d.className='unit'+(state.selection.actor===m.id?' sel':'');
+    d.innerHTML=unitBox({...m, side:'me'});
+    d.onclick=()=>selectActor(m.id);
+    myMonWrap.appendChild(d);
+  });
+  oppMonWrap.innerHTML='';
+  state.oppMonsters.forEach(m=>{
+    const d=document.createElement('div');
+    d.className='unit'+(state.selection.actor===m.id?' sel':'');
+    d.innerHTML=unitBox({...m, side:'opp'});
+    d.onclick=()=>selectActor(m.id);
+    oppMonWrap.appendChild(d);
+  });
+
+  // target select
+  targetSel.innerHTML='';
+  getAllUnits().forEach(u=>{
+    const opt=document.createElement('option');
+    opt.value=u.id; opt.textContent=`${u.side==='me'?'[ME]':'[OPP]'} ${u.name}`;
+    targetSel.appendChild(opt);
+  });
+  if (state.selection.target) targetSel.value = state.selection.target;
+}
+
+function isOwn(actorId){
+  if(actorId==='me') return true;
+  if(actorId==='opp') return false;
+  return !!state.myMonsters.find(x=>x.id===actorId);
+}
+
+function renderActions(){
+  const actor = getUnit(state.selection.actor);
+  let actions=[]; let readOnly=false;
+  if(!actor){ selInfo.textContent='Kein Ziel/Charakter ausgewählt.'; }
+  else{
+    selInfo.textContent = `Ausgewählt: ${actor.side==='me'?'[ME]':'[OPP]'} ${actor.name}`;
+
+    if(actor.side==='me'){
+      // Hauptcharakter → eigene bekannten Attacken + generische
+      actions = [...state.me.knownAttacks];
+    } else if(actor.side==='opp'){
+      // Gegner: nur Anzeige (read-only)
+      actions = [...state.opp.knownAttacks];
+      readOnly=true;
+    } else {
+      // Monster: Standardangriff, falls ATK>0 und kann angreifen
+      if(actor.atk>0 && actor.canAttack!==false){ actions.push(`Monsterangriff (${actor.atk})`); }
+      // evtl. eigene bekannte Attacken des Monsters
+      if(actor.knownAttacks) actions = actions.concat([...actor.knownAttacks]);
+    }
+  }
+
+  atkList.innerHTML='';
+  actions.forEach(a=>{
+    const row=document.createElement('div'); row.className='atk';
+    const left=document.createElement('div'); left.innerHTML = `<b>${a}</b>`;
+    const right=document.createElement('div');
+    if(!readOnly && isOwn(actor?.id)){
+      const btn=document.createElement('button'); btn.textContent='Wählen';
+      btn.onclick=()=>{ state.selection.action=a; renderActions(); renderPriority(); };
+      right.appendChild(btn);
+    } else {
+      right.innerHTML = `<span class="small muted">Nur Anzeige</span>`;
+    }
+    row.appendChild(left); row.appendChild(right);
+    if(state.selection.action===a){ row.style.outline='2px solid #2563eb'; }
+    atkList.appendChild(row);
+  });
+  if(actions.length===0){ atkList.innerHTML = `<div class="small">Für diese Einheit sind noch keine Attacken bekannt.</div>`; }
+}
+
+function renderAll(){ renderHpBars(); renderUnits(); renderActions(); renderPriority(); }
+
+/*************************
+ *  SELECTION            *
+ *************************/
+function selectActor(id){
+  state.selection.actor=id;
+  const actor = getUnit(id);
+  const defaultTarget = (actor?.side==='me' ? state.opp.id : state.me.id);
+  state.selection.target = defaultTarget;
+  state.selection.action = null;
+  renderAll();
+}
+
+targetSel.addEventListener('change', ()=>{ state.selection.target = targetSel.value; renderPriority(); });
+
+/*************************
+ *  UTILS / ACCESS       *
+ *************************/
+function getAllUnits(){
+  return [
+    {...state.me, side:'me'},
+    ...state.myMonsters.map(m=>({...m, side:'me'})),
+    {...state.opp, side:'opp'},
+    ...state.oppMonsters.map(m=>({...m, side:'opp'})),
+  ];
+}
+function getUnit(id){
+  if(!id) return null;
+  if(id==='me') return {...state.me, side:'me'};
+  if(id==='opp') return {...state.opp, side:'opp'};
+  const m1=state.myMonsters.find(x=>x.id===id); if(m1) return {...m1, side:'me'};
+  const m2=state.oppMonsters.find(x=>x.id===id); if(m2) return {...m2, side:'opp'};
+  return null;
+}
+function refUnit(id){
+  if(id==='me') return state.me;
+  if(id==='opp') return state.opp;
+  let r=state.myMonsters.find(x=>x.id===id); if(r) return r;
+  r=state.oppMonsters.find(x=>x.id===id); if(r) return r;
+  return null;
+}
+function clampHp(u){ u.hp = Math.max(0, Math.min(u.hp, u.maxHp)); }
+
+/*************************
+ *  ENGINE               *
+ *************************/
+const Engine = {
+  damage({srcId, tgtId, base, modifiable=true, label='Attacke'}){
+    const src = refUnit(srcId), tgt = refUnit(tgtId);
+    if(!src || !tgt) return;
+    let dmg = base;
+    if (modifiable) {
+      const bonus = (src.nextDamageBonus||0) + (src.rage||0);
+      dmg += bonus;
+      src.nextDamageBonus = 0; // verbrauchen
+      src.rage = 0;
+      const red = (tgt.mods?.dmgTakenFlatMinus||0);
+      dmg = Math.max(0, dmg - red);
+    }
+    tgt.hp -= dmg; clampHp(tgt);
+    logDamage(src.side||'me', label, tgt.name||tgt.id, dmg);
+  },
+  heal({tgtId, amount}){ const t = refUnit(tgtId); if(!t) return; const before=t.hp; t.hp=Math.min(t.maxHp,t.hp+amount); logHeal(t.side||'me', t.name||t.id, t.hp-before); },
+  gainLife({tgtId, amount}){ const t=refUnit(tgtId); if(!t) return; t.maxHp+=amount; t.hp+=amount; logGainLife(t.side||'me', t.name||t.id, amount); },
+  addNextDamageBonus({srcId, amount, label}){ const s=refUnit(srcId); if(!s) return; s.nextDamageBonus=(s.nextDamageBonus||0)+amount; logLine({who:s.side||'me', text:`${label||'Bonus'}: +${amount} auf nächste Schadensattacke.`}); },
+  addRage({srcId, amount}){ const s=refUnit(srcId); if(!s) return; s.rage=(s.rage||0)+amount; logLine({who:s.side||'me', text:`Wut +${amount}.`}); },
+  summon({side,name,hp,maxHp,atk=0,taunt=false,canAttack=true,onSummonDamage=0}){
+    const u = { id:newId(), name, hp:hp??maxHp, maxHp:maxHp??hp, atk, taunt, canAttack, knownAttacks:new Set() };
+    if(side==='me') state.myMonsters.push(u); else state.oppMonsters.push(u);
+    logLine({ who: side, text:`beschwört <b>${name}</b> (${atk}/${u.maxHp}${taunt?' mit Spott':''}).`});
+    if(onSummonDamage>0){ const targetId = side==='me' ? state.opp.id : state.me.id; Engine.damage({srcId:u.id, tgtId:targetId, base:onSummonDamage, label:`${name} (Beschwörung)`}); }
+  },
+  grantTaunt({tgtId}){ const t=refUnit(tgtId); if(!t) return; t.taunt = true; logLine({who:t.side||'me', text:`<b>${t.name}</b> erhält Spott.`}); },
+  grantAttack100({tgtId}){ const t=refUnit(tgtId); if(!t) return; t.knownAttacks = t.knownAttacks || new Set(); t.knownAttacks.add('Lehren: 100 Schaden'); logLine({who:t.side||'me', text:`<b>${t.name}</b> lernt: „100 Schaden“.`}); },
+  giveAlliedMonstersLife({side, amount}){
+    const arr = side==='me' ? state.myMonsters : state.oppMonsters;
+    arr.forEach(m=>{ m.maxHp += amount; m.hp += amount; });
+    logLine({ who: side, text:`Alle eigenen Monster erhalten +${amount} Leben.` });
+  },
+  sacrifice({side, monId}){
+    const arr = side==='me' ? state.myMonsters : state.oppMonsters;
+    const idx = arr.findIndex(m=>m.id===monId); if(idx<0) return;
+    const m = arr[idx]; arr.splice(idx,1);
+    const team = side==='me' ? [state.me, ...state.myMonsters] : [state.opp, ...state.oppMonsters];
+    team.forEach(u=>{ u.maxHp += m.maxHp; u.hp += m.maxHp; });
+    logLine({who:side, text:`opfert <b>${m.name}</b>. Verbündete erhalten zusammen +${m.maxHp} Max-HP und HP.`});
+  }
+};
+
+/*************************
+ *  ATTACKS REGISTRY     *
+ *************************/
+const ATK = {
+  // GENERISCHER MONSTERANGRIFF
+  'Monsterangriff': { needsTarget:true, run: ({actorId,targetId})=>{ const a=refUnit(actorId); Engine.damage({srcId:actorId,tgtId:targetId,base:a.atk,modifiable:true,label:`${a.name} greift an`}); } },
+
+  // BASICS
+  'Schwertschlag': { needsTarget:true, run: ({actorId,targetId})=>Engine.damage({srcId:actorId,tgtId:targetId,base:100,modifiable:true,label:'Schwertschlag'}) },
+  'Verrat': { needsTarget:true, run: ({actorId,targetId})=>Engine.damage({srcId:actorId,tgtId:targetId,base:80,modifiable:true,label:'Verrat'}) },
+  'Sicherer Schlag': { needsTarget:true, run: ({actorId,targetId})=>Engine.damage({srcId:actorId,tgtId:targetId,base:90,modifiable:false,label:'Sicherer Schlag'}) },
+  'Geheime Mission': { needsTarget:true, run: ({actorId,targetId})=>Engine.damage({srcId:actorId,tgtId:targetId,base:90,modifiable:true,label:'Geheime Mission'}) },
+  'Sichere und geheime Mission': { needsTarget:true, run: ({actorId,targetId})=>Engine.damage({srcId:actorId,tgtId:targetId,base:60,modifiable:false,label:'Sichere und geheime Mission'}) },
+  'Heilung': { needsTarget:true, run: ({targetId})=>Engine.heal({tgtId:targetId,amount:100}) },
+  'Über dem Horizont': { needsTarget:false, run: ({actorId})=>Engine.gainLife({tgtId:actorId,amount:120}) },
+  'Wut': { needsTarget:false, run: ({actorId})=>Engine.addNextDamageBonus({srcId:actorId,amount:20,label:'Wut'}) },
+  'Vorbereitung': { needsTarget:false, run: ({actorId})=>Engine.addNextDamageBonus({srcId:actorId,amount:30,label:'Vorbereitung'}) },
+  'Feurige Waffen': { needsTarget:false, run: ({actorId})=>Engine.addRage({srcId:actorId,amount:10}) },
+  'Hartes Training': { needsTarget:false, run: ({actorId})=>Engine.addRage({srcId:actorId,amount:10}) },
+  'Messerstich': { needsTarget:true, run: ({actorId,targetId})=>Engine.damage({srcId:actorId,tgtId:targetId,base:20,modifiable:true,label:'Messerstich'}) },
+  'Messerwürfe': { needsTarget:true, run: ({actorId,targetId})=>{ for(let i=0;i<4;i++) Engine.damage({srcId:actorId,tgtId:targetId,base:20,modifiable:true,label:'Messerwürfe'}); } },
+  'Letzter Wille': { needsTarget:true, run: ({actorId,targetId})=>{ for(let i=0;i<5;i++) Engine.damage({srcId:actorId,tgtId:targetId,base:20,modifiable:true,label:'Letzter Wille'}); } },
+  'Finale': { needsTarget:true, run: ({actorId,targetId})=>Engine.damage({srcId:actorId,tgtId:targetId,base:150,modifiable:true,label:'Finale'}) },
+  'Seelenschlag': { needsTarget:true, run: ({actorId,targetId})=>{ Engine.damage({srcId:actorId,tgtId:targetId,base:120,modifiable:true,label:'Seelenschlag'}); Engine.damage({srcId:actorId,tgtId:actorId,base:50,modifiable:false,label:'Selbstschaden'}); } },
+  'Gleichheit': { needsTarget:false, run: ({actorId})=>{ const enemy = actorId==='me'? state.opp : state.me; const me = actorId==='me'? state.me : state.opp; enemy.hp = Math.min(enemy.maxHp, me.hp); logLine({who: (actorId==='me'?'me':'opp'), text:`Gleicht die gegnerischen Leben auf ${enemy.hp} an.`}); } },
+  'Langsam, aber sicher': { needsTarget:true, run: ({actorId,targetId})=>{ const a=refUnit(actorId); a._done = a._done||0; a._done++; const count = a._done; Engine.damage({srcId:actorId,tgtId:targetId,base:10*count,modifiable:true,label:'Langsam, aber sicher'}); } },
+
+  // LEHREN / BUFFS
+  'Lehren': { needsTarget:true, run: ({targetId})=>Engine.grantAttack100({tgtId:targetId}) },
+  'Lehren: 100 Schaden': { needsTarget:true, run: ({actorId,targetId})=>Engine.damage({srcId:actorId,tgtId:targetId,base:100,modifiable:true,label:'100 Schaden'}) },
+  'Geschenk des Lebens': { needsTarget:false, run: ({actorId})=>{ const side = actorId==='me'?'me':'opp'; Engine.giveAlliedMonstersLife({side, amount:50}); } },
+  'Lebender Schild': { needsTarget:true, run: ({targetId})=>Engine.grantTaunt({tgtId:targetId}) },
+  'Opfer': { needsTarget:true, run: ({actorId,targetId})=>{ const side = (getUnit(targetId)?.side)||'me'; Engine.sacrifice({side, monId:targetId}); } },
+
+  // BESCHWÖRUNGEN
+  'Freund der Tiere': { needsTarget:false, run: ({actorId})=>{ const side = actorId==='me'?'me':'opp'; Engine.summon({side,name:'Tierfreund-Monster',hp:50,maxHp:50,atk:50}); } },
+  'Karnickel': { needsTarget:false, run: ({actorId})=>{ const side = actorId==='me'?'me':'opp'; for(let i=0;i<3;i++) Engine.summon({side,name:`Kaninchen ${i+1}`,hp:10,maxHp:10,atk:0}); } },
+  'Lebender Baum': { needsTarget:false, run: ({actorId})=>{ const side = actorId==='me'?'me':'opp'; Engine.summon({side,name:'Lebender Baum',hp:150,maxHp:150,atk:0}); } },
+  'Wand': { needsTarget:false, run: ({actorId})=>{ const side = actorId==='me'?'me':'opp'; Engine.summon({side,name:'Wand',hp:10,maxHp:10,atk:0,taunt:true,canAttack:false}); } },
+  'Feuerkobold': { needsTarget:false, run: ({actorId})=>{ const side = actorId==='me'?'me':'opp'; Engine.summon({side,name:'Feuerkobold',hp:50,maxHp:50,atk:0,onSummonDamage:50}); } }
+};
+
+/*************************
+ *  ACTION FLOW          *
+ *************************/
+commitBtn.addEventListener('click', ()=>{
+  if(state.priority!=='me'){ warn('Du hast gerade keine Priority.'); return; }
+  const actor = getUnit(state.selection.actor);
+  if(!actor){ warn('Kein Akteur gewählt.'); return; }
+  if(!isOwn(actor.id)){ warn('Du kannst nur mit deinen Einheiten agieren.'); return; }
+  const actionName = state.selection.action; if(!actionName){ warn('Bitte eine Attacke auswählen.'); return; }
+
+  const impl = resolveAttack(actionName, actor.id); if(!impl){ warn(`Kein Handler für „${actionName}“.`); return; }
+
+  let targetId = state.selection.target;
+  if(impl.needsTarget && !targetId){ warn('Bitte ein Ziel wählen.'); return; }
+  if(!impl.needsTarget) targetId = null;
+
+  // Ausführen → in "local" State, dann synchron speichern
+  try{
+    impl.run({actorId:actor.id, targetId});
+    logLine({who:'me', text:`setzt <b>${actionName}</b> ein${targetId?` → <i>${getUnit(targetId)?.name||targetId}</i>`:''}.`});
+  }catch(e){ warn('Fehler bei Attacke: '+(e?.message||e)); return; }
+
+  postActionCleanup(actor.id, actionName);
+  // Sync: Speichere gesamten State (Serialisierung von Sets!)
+  saveSharedState(serializeState());
+});
+
+passBtn.addEventListener('click', ()=>{
+  if(state.priority!=='me'){ warn('Du hast gerade keine Priority.'); return; }
+  logLine({who:'me', text:`passt.`, cls:'muted'});
+  endPriority();
+  saveSharedState(serializeState());
+});
+
+function endPriority(){ state.priority = (state.priority==='me'?'opp':'me'); renderAll(); }
+
+function postActionCleanup(actorId, actionName){ checkWin(); endPriority(); }
+
+function checkWin(){
+  if(state.me.hp<=0 && state.opp.hp<=0){ logLine({text:'Unentschieden – beide besiegt.', who:'sys'}); commitBtn.disabled = passBtn.disabled = true; }
+  else if(state.me.hp<=0){ logLine({text:'Du wurdest besiegt.', who:'sys'}); commitBtn.disabled = passBtn.disabled = true; }
+  else if(state.opp.hp<=0){ logLine({text:'Der Gegner wurde besiegt! 🎉', who:'sys'}); commitBtn.disabled = passBtn.disabled = true; }
+}
+
+function warn(msg){ logLine({who:'sys', text:`<span class="warnb">Hinweis:</span> ${msg}`}); }
+
+/*************************
+ *  ATTACK RESOLUTION    *
+ *************************/
+function resolveAttack(name, actorId){
+  if(name.startsWith('Monsterangriff')) return ATK['Monsterangriff'];
+  if(ATK[name]) return ATK[name];
+  // Fallback: Von Lehren vergebene
+  if(name==='Lehren: 100 Schaden') return ATK['Lehren: 100 Schaden'];
+  return null;
+}
+
+/*************************
+ *  SERIALIZE / APPLY    *
+ *************************/
+function serializeState(){
+  // Sets → Arrays
+  const to = (u)=>({ ...u, passives:[...(u.passives||[])], knownAttacks:[...(u.knownAttacks||[])] });
+  return {
+    version: (state.version||0)+1,
+    priority: state.priority,
+    me: to(state.me), opp: to(state.opp),
+    myMonsters: state.myMonsters.map(to),
+    oppMonsters: state.oppMonsters.map(to)
+  };
+}
+
+function inflateUnit(u){ return ({...u, passives:new Set(u.passives||[]), knownAttacks:new Set(u.knownAttacks||[])}); }
+
+function applyFromShared(payload, v){
+  // In dieser Implementierung spiegeln beide Tabs denselben Zustand.
+  // Tab A ist "me" aus seiner Sicht, Tab B muss die Seiten drehen.
+  // Heuristik: Wenn gs.myId/oppId unterschiedlich sind, drehe für Remote.
+  const remote = payload;
+  state.version = remote.version;
+  state.priority = (remote.priority==='me' ? 'opp' : 'me'); // Sicht drehen
+
+  // Seiten tauschen (damit dieser Client weiterhin "me" ist)
+  state.me = inflateUnit(remote.opp);
+  state.opp = inflateUnit(remote.me);
+  state.myMonsters = remote.oppMonsters.map(inflateUnit);
+  state.oppMonsters = remote.myMonsters.map(inflateUnit);
+
+  renderAll();
+}
+
+/*************************
+ *  INIT                 *
+ *************************/
+(function init(){
+  logLine({who:'sys', text:`Match geladen. Starter (Priority): <b>${state.priority==='me'?'Du':'Gegner'}</b>.`});
+  // Falls es schon einen Shared-State gibt, übernehmen (zweiter Tab)
+  const pack = readSharedState();
+  if(pack){ applyFromShared(pack.payload, pack.v); lastSeenVersion = pack.v; updateSyncBadge(true); }
+  else { renderAll(); saveSharedState(serializeState()); }
+})();
+</script>
+</body>
+</html>
