@@ -184,6 +184,32 @@
             <ol id="oppPassives" class="help"></ol>
           </div>
         </div>
+                </div>
+
+              <!-- NEU: Leben bezahlen -->
+      <div class="panel" id="payPanel" style="display:none">
+        <h2>Leben bezahlen</h2>
+        <div class="row">
+          <div class="pill">Startleben: <span id="startLife">500</span></div>
+          <div class="pill">Minimum behalten: 200</div></div>
+
+        <div class="row" style="gap:12px;margin-top:8px">
+          <input type="range" id="paySlider" min="0" max="300" value="0" style="flex:1">
+          <input type="number" id="payInput" min="0" max="300" value="0" style="width:110px">
+          <div class="pill">Du bezahlst: <span id="myPayView">0</span></div>
+          <div class="pill">Du behältst: <span id="myRemainView">500</span></div>
+          <button id="sendPayBtn" class="secondary" disabled>Zahlung senden</button>
+        </div>
+
+        <div class="row" style="margin-top:8px;gap:16px">
+          <div class="pill">Gegner zahlt: <span id="oppPayView">–</span></div>
+          <div class="pill">Startspieler: <span id="starterView">–</span></div>
+        </div>
+
+        <div class="help" style="margin-top:8px">
+          Regel: Beide wählen verdeckt einen Betrag ≥0, sodass mind. 200 Leben übrig bleiben.
+          Wer mehr bezahlt, beginnt – bei Gleichstand zufällig. Passivattacken werden vor dem Bezahlen offenbart.
+        </div>
       </div>
     </section>
   </main>
@@ -305,6 +331,14 @@ let selRangelei = new Set();    // Rangeleien
 let iAmReady=false, oppReady=false;
 let oppPassives=[]; let myPassives=[]; let revealed=false;
 let currentStep=0;
+let myStartLife = 500;
+let myPay = 0;
+let oppPay = null;
+let myRoll = null;
+let oppRoll = null;
+let starter = null;
+let payUiShown = false;
+
 
 function log(msg, cls=""){ const d=new Date().toLocaleTimeString(); const div=document.createElement('div'); if(cls)div.classList.add(cls); div.textContent=`[${d}] ${msg}`; logEl.appendChild(div); logEl.scrollTop = logEl.scrollHeight; }
 const shortId=()=>Math.random().toString(36).slice(2,7);
@@ -317,6 +351,10 @@ function allowedSlots(){
   return 4 + (sel.has('Verführerisches Angebot') ? 2 : 0);
 }
 function needsRangelei(){ return sel.has('Immer vorbereitet'); }
+function hasVA(){ return sel.has('Verführerisches Angebot'); }
+function computeStartLife(){ return hasVA() ? 400 : 500; } // VA: -100 Leben, +2 Slots
+function maxPay(){ return Math.max(0, computeStartLife() - 200); } // mind. 200 behalten
+
 
 function updateCounters(){
   selCountEl.textContent = `${sel.size}/${allowedSlots()}`;
@@ -502,6 +540,7 @@ async function maybeRevealPassives(){
     await channel.publish('passives_reveal', { playerId: myId, passives: myPassives });
     renderPassivesLists();
     log('Passivattacken offenbart.', 'ok');
+    showPayPanelIfReady();
   }catch(e){ log('Reveal Fehler: '+(e?.message||e),'err'); }
 }
 
@@ -510,6 +549,59 @@ function renderPassivesLists(){
   myPassives.forEach(n=>{ const li=document.createElement('li'); li.textContent=n; myPassivesEl.appendChild(li); });
   oppPassives.forEach(n=>{ const li=document.createElement('li'); li.textContent=n; oppPassivesEl.appendChild(li); });
 }
+
+function updatePayViews(){
+  const remain = myStartLife - myPay;
+  $("myPayView").textContent = String(myPay);
+  $("myRemainView").textContent = String(remain);
+}
+
+function showPayPanelIfReady(){
+  // erst nach beidseitigem Ready + Passiv-Reveal anzeigen
+  if (!revealed || payUiShown === true) return;
+  payUiShown = true;
+
+  myStartLife = computeStartLife();
+  $("startLife").textContent = String(myStartLife);
+
+  const m = maxPay();
+  const slider = $("paySlider");
+  const num = $("payInput");
+  slider.max = m; num.max = m;
+
+  myPay = Math.min(myPay, m);
+  slider.value = String(myPay);
+  num.value = String(myPay);
+
+  updatePayViews();
+  $("payPanel").style.display = "";
+  $("sendPayBtn").disabled = false;
+}
+
+function tryResolveStarter(){
+  // brauchen: meine Zahlung + Wurf + gegnerische Zahlung + Wurf
+  if (myRoll == null || oppRoll == null || oppPay == null) return;
+
+  const me = myPay;
+  const op = oppPay;
+  let who;
+
+  if (me > op) who = myId;
+  else if (me < op) who = 'op';
+  else {
+    // Gleichstand: zufällig per Roll; Fallback clientId
+    if (myRoll > oppRoll) who = myId;
+    else if (myRoll < oppRoll) who = 'op';
+    else who = (myId < (opIdEl.textContent || '')) ? myId : 'op';
+  }
+
+  starter = who;
+  const text = (who === myId) ? 'Du' : 'Gegner';
+  $("starterView").textContent = text;
+  log(`Startspieler: ${text}.`, 'ok');
+}
+
+
 
 function setConnected(on, code=''){
   statusEl.textContent = on ? `verbunden: ${code}` : 'offline';
@@ -531,11 +623,20 @@ async function joinRoom(){
     await refreshPresence();
     if(presencePoll) clearInterval(presencePoll); presencePoll=setInterval(refreshPresence, 3000);
     channel.subscribe('passives_reveal', (msg)=>{
-      if(msg?.data?.playerId===myId) return; // eigene ignorieren
-      oppPassives = Array.isArray(msg.data.passives)? msg.data.passives : [];
-      renderPassivesLists();
-      log('Gegnerische Passivattacken eingetroffen.','ok');
-    });
+  if(msg?.data?.playerId===myId) return; // eigene ignorieren
+  oppPassives = Array.isArray(msg.data.passives)? msg.data.passives : [];
+  renderPassivesLists();
+  log('Gegnerische Passivattacken eingetroffen.','ok');
+  showPayPanelIfReady();
+});
+    channel.subscribe('life_pay', (msg)=>{
+  if(msg?.data?.playerId === myId) return; // eigene ignorieren
+  oppPay  = Number(msg.data.pay)  || 0;
+  oppRoll = Number(msg.data.roll) || 0;
+  $("oppPayView").textContent = String(oppPay);
+  tryResolveStarter();
+});
+
   });
   client.connection.on((s)=>{ if(['closed','failed','suspended','disconnected'].includes(s.current)){ setConnected(false); if(presencePoll){clearInterval(presencePoll); presencePoll=null;} } });
 }
@@ -548,6 +649,30 @@ async function leaveRoom(){
   roomInfoEl.textContent='–'; onlineCountEl.textContent='0'; opIdEl.textContent='–'; readyStateEl.textContent='Warten…';
   iAmReady=false; oppReady=false; revealed=false; sel.clear(); selRangelei.clear(); myPassives=[]; oppPassives=[]; renderPassivesLists();
   renderAttacks(); renderRangeleis(); renderReviewLists();
+  // --- Pay-Phase vollständig zurücksetzen (Schritt 9) ---
+payUiShown = false;
+myStartLife = 500;
+myPay = 0;
+oppPay = null;
+myRoll = null;
+oppRoll = null;
+starter = null;
+
+const payPanelEl = document.getElementById('payPanel');
+if (payPanelEl) {
+  payPanelEl.style.display = 'none';
+  // UI-Elemente auch zurücksetzen, falls sie schon existieren
+  const sld = document.getElementById('paySlider');
+  const num = document.getElementById('payInput');
+  if (sld) sld.value = "0";
+  if (num) num.value = "0";
+  const setText = (id, v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
+  setText('myPayView',"0");
+  setText('myRemainView',"500");
+  setText('oppPayView',"–");
+  setText('starterView',"–");
+}
+
   log('Verlassen.'); client=null; channel=null; myId=null; roomCode=null;
   gotoStep(0);
 }
@@ -574,6 +699,38 @@ $("readyBtn").addEventListener('click', async ()=>{
   readyBtn.disabled=true; $("clearSel").disabled=true;
   await refreshPresence();
 });
+
+// Leben bezahlen – UI
+$("paySlider").addEventListener('input', (e)=>{
+  myPay = Number(e.target.value) || 0;
+  $("payInput").value = String(myPay);
+  updatePayViews();
+});
+
+$("payInput").addEventListener('input', (e)=>{
+  let v = Number(e.target.value);
+  if (isNaN(v) || v < 0) v = 0;
+  const m = maxPay();
+  if (v > m) v = m;
+  myPay = v;
+  $("paySlider").value = String(myPay);
+  updatePayViews();
+});
+
+// Leben bezahlen – senden
+$("sendPayBtn").addEventListener('click', async ()=>{
+  if (!channel || !revealed) { log("Noch nicht bereit für die Zahlung.", "warn"); return; }
+  myRoll = Math.floor(Math.random() * 10000);  // fairer Tie-Break
+  try{
+    await channel.publish('life_pay', { playerId: myId, pay: myPay, roll: myRoll, startLife: myStartLife });
+    $("sendPayBtn").disabled = true;
+    log(`Zahlung gesendet: ${myPay} (du behältst ${myStartLife - myPay}).`, 'ok');
+    tryResolveStarter();
+  }catch(e){
+    log('Zahlung senden fehlgeschlagen: ' + (e?.message || e), 'err');
+  }
+});
+
 
 /* ==== Initial ==== */
 renderAttacks(); renderRangeleis(); renderReviewLists(); updateCounters(); gotoStep(0);
