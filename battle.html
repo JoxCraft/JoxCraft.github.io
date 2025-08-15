@@ -210,14 +210,15 @@ let idSeq = 1; const newId = () => `id_${idSeq++}`;
 const state = {
   version: 0,
   priority: gs.life?.starter === 'me' ? 'me' : 'opp',
-  me: { id:'me', name: gs.myId || 'Du', hp: meStart, maxHp: meStart, rage: 0, nextDamageBonus: 0,
+  me: { id:'me', name: (gs.myId || 'Du').split('-')[0], hp: meStart, maxHp: meStart, rage: 0, nextDamageBonus: 0,
         passives: new Set(gs.passives?.me || []), knownAttacks: new Set(myKnownAttacks), mods:{ dmgTakenFlatMinus:0 } },
-  opp:{ id:'opp', name: gs.oppId || 'Gegner', hp: oppStart, maxHp: oppStartBase, rage:0, nextDamageBonus:0,
-        passives: new Set(gs.passives?.opp || []), knownAttacks: new Set(gs.passives?.opp || []), mods:{ dmgTakenFlatMinus:0 } },
+  opp:{ id:'opp', name: (gs.oppId || 'Gegner').split('-')[0], hp: oppStart, maxHp: oppStartBase, rage:0, nextDamageBonus:0,
+        passives: new Set(gs.passives?.opp || []), knownAttacks: new Set(), mods:{ dmgTakenFlatMinus:0 } },
   myMonsters: [],
   oppMonsters: [],
   locks: {}, // z.B. Attack-Locks (Wachsames Auge)
-  selection: { actor:null, action:null, target:null }
+  selection: { actor:null, action:null, target:null },
+  log: []
 };
 
 if (state.me.passives.has('Metallschild')) state.me.mods.dmgTakenFlatMinus += 10;
@@ -228,6 +229,7 @@ if (state.opp.passives.has('Metallschild')) state.opp.mods.dmgTakenFlatMinus += 
  *************************/
 const logEl = document.getElementById('log');
 function logLine({who='sys', text='', cls=''}){
+  state.log.push({who, text, cls});
   const div = document.createElement('div');
   div.className = `it ${cls}`;
   const tag = document.createElement('span');
@@ -238,6 +240,22 @@ function logLine({who='sys', text='', cls=''}){
   span.innerHTML = text;
   div.appendChild(span);
   logEl.appendChild(div);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function renderLog(){
+  logEl.innerHTML='';
+  state.log.forEach(entry=>{
+    const div=document.createElement('div');
+    div.className=`it ${entry.cls||''}`;
+    const tag=document.createElement('span');
+    tag.className=`tag ${entry.who==='me'?'me':entry.who==='opp'?'opp':'sys'}`;
+    tag.textContent=entry.who==='me'?'[ME]':entry.who==='opp'?'[OPP]':'[SYS]';
+    div.appendChild(tag);
+    const span=document.createElement('span');
+    span.innerHTML=entry.text;
+    div.appendChild(span);
+    logEl.appendChild(div);
+  });
   logEl.scrollTop = logEl.scrollHeight;
 }
 function logDamage(who, fromName, toName, amt){ logLine({who, text:`<span class="dmg">-${amt} HP</span> ${toName} durch <b>${fromName}</b>.`}); }
@@ -307,41 +325,40 @@ function renderActions(){
   else{
     selInfo.textContent = `Ausgewählt: ${actor.side==='me'?'[ME]':'[OPP]'} ${actor.name}`;
 
-    if(actor.side==='me'){
-      // Hauptcharakter → eigene bekannten Attacken + generische
+    if(actor.id==='me'){
       actions = [...state.me.knownAttacks];
-    } else if(actor.side==='opp'){
-      // Gegner: nur Anzeige (read-only)
+    } else if(actor.id==='opp'){
       actions = [...state.opp.knownAttacks];
       readOnly=true;
     } else {
-      // Monster: Standardangriff, falls ATK>0 und kann angreifen
       if(actor.atk>0 && actor.canAttack!==false){ actions.push(`Monsterangriff (${actor.atk})`); }
-      // evtl. eigene bekannte Attacken des Monsters
       if(actor.knownAttacks) actions = actions.concat([...actor.knownAttacks]);
+      if(actor.side==='opp') readOnly=true;
     }
   }
 
   atkList.innerHTML='';
   actions.forEach(a=>{
     const row=document.createElement('div'); row.className='atk';
-    const left=document.createElement('div'); left.innerHTML = `<b>${a}</b>`;
+    const left=document.createElement('div');
+    const desc=getAttackDesc(a);
+    left.innerHTML = `<b>${a}</b>${desc?`<div class=\"small\">${desc}</div>`:''}`;
     const right=document.createElement('div');
     if(!readOnly && isOwn(actor?.id)){
       const btn=document.createElement('button'); btn.textContent='Wählen';
       btn.onclick=()=>{ state.selection.action=a; renderActions(); renderPriority(); };
       right.appendChild(btn);
     } else {
-      right.innerHTML = `<span class="small muted">Nur Anzeige</span>`;
+      right.innerHTML = `<span class=\"small muted\">Nur Anzeige</span>`;
     }
     row.appendChild(left); row.appendChild(right);
     if(state.selection.action===a){ row.style.outline='2px solid #2563eb'; }
     atkList.appendChild(row);
   });
-  if(actions.length===0){ atkList.innerHTML = `<div class="small">Für diese Einheit sind noch keine Attacken bekannt.</div>`; }
+  if(actions.length===0){ atkList.innerHTML = `<div class=\"small\">Für diese Einheit sind noch keine Attacken bekannt.</div>`; }
 }
 
-function renderAll(){ renderHpBars(); renderUnits(); renderActions(); renderPriority(); }
+function renderAll(){ renderHpBars(); renderUnits(); renderActions(); renderPriority(); renderLog(); }
 
 /*************************
  *  SELECTION            *
@@ -473,6 +490,43 @@ const ATK = {
   'Feuerkobold': { needsTarget:false, run: ({actorId})=>{ const side = actorId==='me'?'me':'opp'; Engine.summon({side,name:'Feuerkobold',hp:50,maxHp:50,atk:0,onSummonDamage:50}); } }
 };
 
+const ATK_DESC = {
+  'Monsterangriff': 'Standardangriff des Monsters.',
+  'Schwertschlag': '100 Schaden.',
+  'Verrat': '80 Schaden.',
+  'Sicherer Schlag': '90 Schaden. Schaden nicht veränderbar.',
+  'Geheime Mission': '90 Schaden. Nicht konterbar.',
+  'Sichere und geheime Mission': '60 Schaden. Nicht konterbar. Schaden nicht veränderbar.',
+  'Heilung': 'Heile 100 Leben.',
+  'Über dem Horizont': 'Erhalte 120 Leben (erhöht maximale Leben).',
+  'Wut': 'Deine nächste Schaden-Attacke verursacht +20 Schaden.',
+  'Vorbereitung': 'Deine nächste Schaden-Attacke verursacht +30 Schaden.',
+  'Feurige Waffen': 'Erhalte in diesem Zug 10 Wut.',
+  'Hartes Training': 'Erhalte 10 Wut.',
+  'Messerstich': '20 Schaden.',
+  'Messerwürfe': '4×20 Schaden.',
+  'Letzter Wille': '5×20 Schaden.',
+  'Finale': '150 Schaden.',
+  'Seelenschlag': '120 Schaden. Du erleidest 50 Selbstschaden.',
+  'Gleichheit': 'Setze die Leben des Gegners auf deine aktuellen Leben.',
+  'Langsam, aber sicher': '10 × (Anzahl deiner erfolgreich ausgeführten Attacken) Schaden.',
+  'Lehren': 'Verleihe einem Charakter die Attacke: „100 Schaden“.',
+  'Lehren: 100 Schaden': '100 Schaden.',
+  'Geschenk des Lebens': 'Verleihe allen freundlichen Monstern +50 Leben.',
+  'Lebender Schild': 'Wähle ein freundliches Monster. Verleihe ihm Spott.',
+  'Opfer': 'Vernichte ein freundliches Monster. Verbündete erhalten seine Leben.',
+  'Freund der Tiere': 'Beschwöre ein 50/50 Monster.',
+  'Karnickel': 'Beschwöre drei 0/10 Monster.',
+  'Lebender Baum': 'Beschwöre ein 0/150 Monster.',
+  'Wand': 'Beschwöre ein 0/10 Monster mit Spott. Es kann nicht angreifen.',
+  'Feuerkobold': 'Beschwöre ein 0/50 Monster mit: Bei Beschwörung 50 Schaden an ein Ziel.'
+};
+
+function getAttackDesc(name){
+  const base = name.replace(/ \(.*\)$/,'');
+  return ATK_DESC[base] || '';
+}
+
 /*************************
  *  ACTION FLOW          *
  *************************/
@@ -541,7 +595,8 @@ function serializeState(){
     priority: state.priority,
     me: to(state.me), opp: to(state.opp),
     myMonsters: state.myMonsters.map(to),
-    oppMonsters: state.oppMonsters.map(to)
+    oppMonsters: state.oppMonsters.map(to),
+    log: state.log
   };
 }
 
@@ -560,6 +615,7 @@ function applyFromShared(payload, v){
   state.opp = inflateUnit(remote.me);
   state.myMonsters = remote.oppMonsters.map(inflateUnit);
   state.oppMonsters = remote.myMonsters.map(inflateUnit);
+  state.log = remote.log || [];
 
   renderAll();
 }
