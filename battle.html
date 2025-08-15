@@ -327,11 +327,15 @@ function renderActions(){
 
     if(actor.id==='me'){
       actions = [...state.me.knownAttacks];
+      readOnly = false;
     } else if(actor.id==='opp'){
-      actions = [...state.opp.knownAttacks];
-      readOnly=true;
+      // Gegner: Passiven (nur Anzeige) + bekannte Attacken (nur Anzeige)
+      actions = [...state.opp.passives].map(p=>`${p} (Passiv)`).concat([...state.opp.knownAttacks]);
+      readOnly = true;
     } else {
+      // Monster
       if(actor.atk>0 && actor.canAttack!==false){ actions.push(`Monsterangriff (${actor.atk})`); }
+      if(actor.passives) actions = actions.concat([...actor.passives].map(p=>`${p} (Passiv)`));
       if(actor.knownAttacks) actions = actions.concat([...actor.knownAttacks]);
       if(actor.side==='opp') readOnly=true;
     }
@@ -342,20 +346,20 @@ function renderActions(){
     const row=document.createElement('div'); row.className='atk';
     const left=document.createElement('div');
     const desc=getAttackDesc(a);
-    left.innerHTML = `<b>${a}</b>${desc?`<div class=\"small\">${desc}</div>`:''}`;
+    left.innerHTML = `<b>${a}</b>${desc?`<div class="small">${desc}</div>`:''}`;
     const right=document.createElement('div');
     if(!readOnly && isOwn(actor?.id)){
       const btn=document.createElement('button'); btn.textContent='Wählen';
       btn.onclick=()=>{ state.selection.action=a; renderActions(); renderPriority(); };
       right.appendChild(btn);
     } else {
-      right.innerHTML = `<span class=\"small muted\">Nur Anzeige</span>`;
+      right.innerHTML = `<span class="small muted">Nur Anzeige</span>`;
     }
     row.appendChild(left); row.appendChild(right);
     if(state.selection.action===a){ row.style.outline='2px solid #2563eb'; }
     atkList.appendChild(row);
   });
-  if(actions.length===0){ atkList.innerHTML = `<div class=\"small\">Für diese Einheit sind noch keine Attacken bekannt.</div>`; }
+  if(actions.length===0){ atkList.innerHTML = `<div class="small">Für diese Einheit sind noch keine Attacken bekannt.</div>`; }
 }
 
 function renderAll(){ renderHpBars(); renderUnits(); renderActions(); renderPriority(); renderLog(); }
@@ -402,37 +406,48 @@ function refUnit(id){
 }
 function clampHp(u){ u.hp = Math.max(0, Math.min(u.hp, u.maxHp)); }
 
+function getSide(id){
+  if(id==='me' || state.myMonsters.some(m=>m.id===id)) return 'me';
+  if(id==='opp' || state.oppMonsters.some(m=>m.id===id)) return 'opp';
+  return 'me';
+}
+
+function recordKnownAttack(actorId, name){
+  const r = refUnit(actorId); if(!r) return;
+  r.knownAttacks = r.knownAttacks || new Set();
+  r.knownAttacks.add(name);
+}
+
 /*************************
  *  ENGINE               *
  *************************/
 const Engine = {
-  damage({srcId, tgtId, base, modifiable=true, label='Attacke'}){
+  damage({srcId, tgtId, base, modifiable=true, label='Attacke', consume=true}){
     const src = refUnit(srcId), tgt = refUnit(tgtId);
     if(!src || !tgt) return;
     let dmg = base;
     if (modifiable) {
       const bonus = (src.nextDamageBonus||0) + (src.rage||0);
       dmg += bonus;
-      src.nextDamageBonus = 0; // verbrauchen
-      src.rage = 0;
+      if(consume){ src.nextDamageBonus = 0; src.rage = 0; }
       const red = (tgt.mods?.dmgTakenFlatMinus||0);
       dmg = Math.max(0, dmg - red);
     }
     tgt.hp -= dmg; clampHp(tgt);
-    logDamage(src.side||'me', label, tgt.name||tgt.id, dmg);
+    logDamage(getSide(srcId), label, tgt.name||tgt.id, dmg);
   },
-  heal({tgtId, amount}){ const t = refUnit(tgtId); if(!t) return; const before=t.hp; t.hp=Math.min(t.maxHp,t.hp+amount); logHeal(t.side||'me', t.name||t.id, t.hp-before); },
-  gainLife({tgtId, amount}){ const t=refUnit(tgtId); if(!t) return; t.maxHp+=amount; t.hp+=amount; logGainLife(t.side||'me', t.name||t.id, amount); },
-  addNextDamageBonus({srcId, amount, label}){ const s=refUnit(srcId); if(!s) return; s.nextDamageBonus=(s.nextDamageBonus||0)+amount; logLine({who:s.side||'me', text:`${label||'Bonus'}: +${amount} auf nächste Schadensattacke.`}); },
-  addRage({srcId, amount}){ const s=refUnit(srcId); if(!s) return; s.rage=(s.rage||0)+amount; logLine({who:s.side||'me', text:`Wut +${amount}.`}); },
+  heal({tgtId, amount}){ const t = refUnit(tgtId); if(!t) return; const before=t.hp; t.hp=Math.min(t.maxHp,t.hp+amount); logHeal(getSide(tgtId), t.name||t.id, t.hp-before); },
+  gainLife({tgtId, amount}){ const t=refUnit(tgtId); if(!t) return; t.maxHp+=amount; t.hp+=amount; logGainLife(getSide(tgtId), t.name||t.id, amount); },
+  addNextDamageBonus({srcId, amount, label}){ const s=refUnit(srcId); if(!s) return; s.nextDamageBonus=(s.nextDamageBonus||0)+amount; logLine({who:getSide(srcId), text:`${label||'Bonus'}: +${amount} auf nächste Schadensattacke.`}); },
+  addRage({srcId, amount}){ const s=refUnit(srcId); if(!s) return; s.rage=(s.rage||0)+amount; logLine({who:getSide(srcId), text:`Wut +${amount}.`}); },
   summon({side,name,hp,maxHp,atk=0,taunt=false,canAttack=true,onSummonDamage=0}){
     const u = { id:newId(), name, hp:hp??maxHp, maxHp:maxHp??hp, atk, taunt, canAttack, knownAttacks:new Set() };
     if(side==='me') state.myMonsters.push(u); else state.oppMonsters.push(u);
     logLine({ who: side, text:`beschwört <b>${name}</b> (${atk}/${u.maxHp}${taunt?' mit Spott':''}).`});
     if(onSummonDamage>0){ const targetId = side==='me' ? state.opp.id : state.me.id; Engine.damage({srcId:u.id, tgtId:targetId, base:onSummonDamage, label:`${name} (Beschwörung)`}); }
   },
-  grantTaunt({tgtId}){ const t=refUnit(tgtId); if(!t) return; t.taunt = true; logLine({who:t.side||'me', text:`<b>${t.name}</b> erhält Spott.`}); },
-  grantAttack100({tgtId}){ const t=refUnit(tgtId); if(!t) return; t.knownAttacks = t.knownAttacks || new Set(); t.knownAttacks.add('Lehren: 100 Schaden'); logLine({who:t.side||'me', text:`<b>${t.name}</b> lernt: „100 Schaden“.`}); },
+  grantTaunt({tgtId}){ const t=refUnit(tgtId); if(!t) return; t.taunt = true; logLine({who:getSide(tgtId), text:`<b>${t.name}</b> erhält Spott.`}); },
+  grantAttack100({tgtId}){ const t=refUnit(tgtId); if(!t) return; t.knownAttacks = t.knownAttacks || new Set(); t.knownAttacks.add('Lehren: 100 Schaden'); logLine({who:getSide(tgtId), text:`<b>${t.name}</b> lernt: „100 Schaden“.`}); },
   giveAlliedMonstersLife({side, amount}){
     const arr = side==='me' ? state.myMonsters : state.oppMonsters;
     arr.forEach(m=>{ m.maxHp += amount; m.hp += amount; });
@@ -468,8 +483,8 @@ const ATK = {
   'Feurige Waffen': { needsTarget:false, run: ({actorId})=>Engine.addRage({srcId:actorId,amount:10}) },
   'Hartes Training': { needsTarget:false, run: ({actorId})=>Engine.addRage({srcId:actorId,amount:10}) },
   'Messerstich': { needsTarget:true, run: ({actorId,targetId})=>Engine.damage({srcId:actorId,tgtId:targetId,base:20,modifiable:true,label:'Messerstich'}) },
-  'Messerwürfe': { needsTarget:true, run: ({actorId,targetId})=>{ for(let i=0;i<4;i++) Engine.damage({srcId:actorId,tgtId:targetId,base:20,modifiable:true,label:'Messerwürfe'}); } },
-  'Letzter Wille': { needsTarget:true, run: ({actorId,targetId})=>{ for(let i=0;i<5;i++) Engine.damage({srcId:actorId,tgtId:targetId,base:20,modifiable:true,label:'Letzter Wille'}); } },
+  'Messerwürfe': { needsTarget:true, run: ({actorId,targetId})=>{ for(let i=0;i<4;i++) Engine.damage({srcId:actorId,tgtId:targetId,base:20,modifiable:true,label:'Messerwürfe',consume:i===3}); } },
+  'Letzter Wille': { needsTarget:true, run: ({actorId,targetId})=>{ for(let i=0;i<5;i++) Engine.damage({srcId:actorId,tgtId:targetId,base:20,modifiable:true,label:'Letzter Wille',consume=i===4}); } },
   'Finale': { needsTarget:true, run: ({actorId,targetId})=>Engine.damage({srcId:actorId,tgtId:targetId,base:150,modifiable:true,label:'Finale'}) },
   'Seelenschlag': { needsTarget:true, run: ({actorId,targetId})=>{ Engine.damage({srcId:actorId,tgtId:targetId,base:120,modifiable:true,label:'Seelenschlag'}); Engine.damage({srcId:actorId,tgtId:actorId,base:50,modifiable:false,label:'Selbstschaden'}); } },
   'Gleichheit': { needsTarget:false, run: ({actorId})=>{ const enemy = actorId==='me'? state.opp : state.me; const me = actorId==='me'? state.me : state.opp; enemy.hp = Math.min(enemy.maxHp, me.hp); logLine({who: (actorId==='me'?'me':'opp'), text:`Gleicht die gegnerischen Leben auf ${enemy.hp} an.`}); } },
@@ -549,6 +564,7 @@ commitBtn.addEventListener('click', ()=>{
     logLine({who:'me', text:`setzt <b>${actionName}</b> ein${targetId?` → <i>${getUnit(targetId)?.name||targetId}</i>`:''}.`});
   }catch(e){ warn('Fehler bei Attacke: '+(e?.message||e)); return; }
 
+  recordKnownAttack(actor.id, actionName);
   postActionCleanup(actor.id, actionName);
   // Sync: Speichere gesamten State (Serialisierung von Sets!)
   saveSharedState(serializeState());
@@ -611,11 +627,12 @@ function applyFromShared(payload, v){
   state.priority = (remote.priority==='me' ? 'opp' : 'me'); // Sicht drehen
 
   // Seiten tauschen (damit dieser Client weiterhin "me" ist)
-  state.me = inflateUnit(remote.opp);
-  state.opp = inflateUnit(remote.me);
+  state.me = inflateUnit(remote.opp); state.me.id='me';
+  state.opp = inflateUnit(remote.me); state.opp.id='opp';
   state.myMonsters = remote.oppMonsters.map(inflateUnit);
   state.oppMonsters = remote.myMonsters.map(inflateUnit);
-  state.log = remote.log || [];
+  // Log-Perspektive spiegeln
+  state.log = (remote.log||[]).map(e=>({ ...e, who: e.who==='me'?'opp':e.who==='opp'?'me':e.who }));
 
   renderAll();
 }
