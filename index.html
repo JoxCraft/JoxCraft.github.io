@@ -427,6 +427,8 @@ function saveGameStateAndGo() {
   const key = `osja_game_${roomCode || 'default'}`;
   sessionStorage.setItem(key, JSON.stringify(state));
 
+  localStorage.removeItem(`osja_room_${roomCode || 'default'}`);
+
   // --- NEU: Markiere "ich wechsle" & sag dem Gegner Bescheid
   switchingToBattle = true;
   try {
