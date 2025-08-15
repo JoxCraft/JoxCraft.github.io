@@ -230,17 +230,7 @@ if (state.opp.passives.has('Metallschild')) state.opp.mods.dmgTakenFlatMinus += 
 const logEl = document.getElementById('log');
 function logLine({who='sys', text='', cls=''}){
   state.log.push({who, text, cls});
-  const div = document.createElement('div');
-  div.className = `it ${cls}`;
-  const tag = document.createElement('span');
-  tag.className = `tag ${who==='me'?'me':who==='opp'?'opp':'sys'}`;
-  tag.textContent = who==='me' ? '[ME]' : who==='opp' ? '[OPP]' : '[SYS]';
-  div.appendChild(tag);
-  const span = document.createElement('span');
-  span.innerHTML = text;
-  div.appendChild(span);
-  logEl.appendChild(div);
-  logEl.scrollTop = logEl.scrollHeight;
+  renderLog();
 }
 function renderLog(){
   logEl.innerHTML='';
@@ -506,32 +496,27 @@ const ATK_DESC = {
   'Monsterangriff': 'Standardangriff des Monsters.',
   'Schwertschlag': '100 Schaden.',
   'Verrat': '80 Schaden.',
-  'Sicherer Schlag': '90 Schaden. Schaden nicht veränderbar.',
-  'Geheime Mission': '90 Schaden. Nicht konterbar.',
-  'Sichere und geheime Mission': '60 Schaden. Nicht konterbar. Schaden nicht veränderbar.',
+  'Sicherer Schlag': '90 Schaden, nicht modifizierbar.',
+  'Geheime Mission': '90 Schaden, nicht konterbar.',
+  'Sichere und geheime Mission': '60 Schaden, nicht konterbar oder modifizierbar.',
   'Heilung': 'Heile 100 Leben.',
-  'Über dem Horizont': 'Erhalte 120 Leben (erhöht maximale Leben).',
-  'Wut': 'Deine nächste Schaden-Attacke verursacht +20 Schaden.',
-  'Vorbereitung': 'Deine nächste Schaden-Attacke verursacht +30 Schaden.',
-  'Feurige Waffen': 'Erhalte in diesem Zug 10 Wut.',
+  'Über dem Horizont': 'Erhalte 120 Leben (Max-LP).',
+  'Wut': 'Nächste Schadensattacke +20.',
+  'Vorbereitung': 'Nächste Schadensattacke +30.',
+  'Feurige Waffen': 'Erhalte 10 Wut in diesem Zug.',
   'Hartes Training': 'Erhalte 10 Wut.',
   'Messerstich': '20 Schaden.',
   'Messerwürfe': '4×20 Schaden.',
   'Letzter Wille': '5×20 Schaden.',
   'Finale': '150 Schaden.',
-  'Seelenschlag': '120 Schaden. Du erleidest 50 Selbstschaden.',
-  'Gleichheit': 'Setze die Leben des Gegners auf deine aktuellen Leben.',
-  'Langsam, aber sicher': '10 × (Anzahl deiner erfolgreich ausgeführten Attacken) Schaden.',
-  'Lehren': 'Verleihe einem Charakter die Attacke: „100 Schaden“.',
-  'Lehren: 100 Schaden': '100 Schaden.',
-  'Geschenk des Lebens': 'Verleihe allen freundlichen Monstern +50 Leben.',
-  'Lebender Schild': 'Wähle ein freundliches Monster. Verleihe ihm Spott.',
-  'Opfer': 'Vernichte ein freundliches Monster. Verbündete erhalten seine Leben.',
+  'Seelenschlag': '120 Schaden, du selbst erleidest 50 Schaden.',
+  'Gleichheit': 'Setzt gegnerische Leben auf deine Leben.',
+  'Opfer': 'Vernichte ein verbündetes Monster; Verbündete erhalten seine Leben.',
   'Freund der Tiere': 'Beschwöre ein 50/50 Monster.',
   'Karnickel': 'Beschwöre drei 0/10 Monster.',
   'Lebender Baum': 'Beschwöre ein 0/150 Monster.',
-  'Wand': 'Beschwöre ein 0/10 Monster mit Spott. Es kann nicht angreifen.',
-  'Feuerkobold': 'Beschwöre ein 0/50 Monster mit: Bei Beschwörung 50 Schaden an ein Ziel.'
+  'Wand': 'Beschwöre ein 0/10 Monster mit Spott, das nicht angreifen kann.',
+  'Feuerkobold': 'Beschwöre ein 0/50 Monster; bei Beschwörung 50 Schaden an ein Ziel.'
 };
 
 function getAttackDesc(name){
@@ -628,7 +613,7 @@ function applyFromShared(payload, v){
   state.opp = inflateUnit(remote.me); state.opp.id='opp';
   state.myMonsters = remote.oppMonsters.map(inflateUnit);
   state.oppMonsters = remote.myMonsters.map(inflateUnit);
-  state.log = (remote.log||[]).map(e=>({ ...e, who: e.who==='me'?'opp':e.who==='opp'?'me':e.who }));
+  state.log = (remote.log||[]).map(e=>({ who: e.who==='me'?'opp': e.who==='opp'?'me':'sys', text:e.text, cls:e.cls }));
 
   renderAll();
 }
