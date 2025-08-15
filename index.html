@@ -46,7 +46,7 @@
     .pill{padding:2px 8px;border:1px solid var(--line);border-radius:999px;background:#0f1420;font-size:12px}
     .help{color:var(--muted);font-size:13px}
     /* Cards Grid */
-    .filters{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;position:sticky;top:calc(52px + 42px); /* below stepper */ z-index:8;background:linear-gradient(180deg,#121a2a 0%,rgba(18,26,42,.6) 100%);padding:8px;border:1px solid var(--line);border-radius:10px}
+    .filters{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;position:sticky;top:calc(52px + 42px); z-index:8;background:linear-gradient(180deg,#121a2a 0%,rgba(18,26,42,.6) 100%);padding:8px;border:1px solid var(--line);border-radius:10px}
     .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
     .card{background:#0d121a;border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;gap:10px;align-items:flex-start}
     .card input[type="checkbox"]{margin-top:2px}
@@ -87,7 +87,6 @@
       <div class="step" data-go="1">2) Attacken <span class="pill" id="selCount">0/4</span></div>
       <div class="step" data-go="2" id="stepRangelei">3) Rangeleien <span class="pill" id="rangeleiCount">0/3</span></div>
       <div class="step" data-go="3">4) Review & Ready</div>
-      <!-- NEU: eigener Step -->
       <div class="step" data-go="4">5) Leben bezahlen</div>
     </div>
   </div>
@@ -139,7 +138,7 @@
       </div>
     </section>
 
-    <!-- Screen 2: Rangeleien (nur wenn nötig) -->
+    <!-- Screen 2: Rangeleien -->
     <section class="screen" data-step="2">
       <div class="panel" id="rangeleiGate" style="display:none">
         <h2>Rangeleien</h2>
@@ -189,7 +188,7 @@
       </div>
     </section>
 
-    <!-- Screen 4: Leben bezahlen (NEU eigener Step) -->
+    <!-- Screen 4: Leben bezahlen -->
     <section class="screen" data-step="4">
       <div class="panel" id="payHint">
         <h2>Leben bezahlen</h2>
@@ -207,7 +206,6 @@
         </div>
 
         <div class="row" style="gap:12px;margin-top:8px">
-          <!-- Schrittweite 5 -->
           <input type="range" id="paySlider" min="0" max="300" value="0" step="5" style="flex:1">
           <input type="number" id="payInput" min="0" max="300" value="0" step="5" style="width:110px">
           <div class="pill">Du bezahlst: <span id="myPayView">0</span></div>
@@ -339,11 +337,11 @@ const nextBtn=$("nextBtn"), prevBtn=$("prevBtn");
 const rangeleiGate=document.getElementById('rangeleiGate'), rangeleiHint=document.getElementById('rangeleiHint');
 
 /* ==== State ==== */
-let lastOppId = null;         // zuletzt gesehener Gegner
-let hadOpponent = false;      // gab es vor kurzem einen Gegner?
+let lastOppId = null;
+let hadOpponent = false;
 let client=null, channel=null; let myId=null, roomCode=null;
-let sel = new Set();            // Attacken
-let selRangelei = new Set();    // Rangeleien
+let sel = new Set();
+let selRangelei = new Set();
 let iAmReady=false, oppReady=false;
 let oppPassives=[]; let myPassives=[]; let revealed=false;
 let currentStep=0;
@@ -395,11 +393,43 @@ function updateCounters(){
   }
 }
 
+/* ====== NEU: GameState bauen & speichern ====== */
+function buildGameState() {
+  return {
+    roomCode,
+    myId,
+    oppId: (opIdEl.textContent || '–'),
+    selections: {
+      attacks: [...sel],
+      rangeleis: [...selRangelei]
+    },
+    passives: {
+      me: [...myPassives],
+      opp: [...oppPassives]
+    },
+    life: {
+      myStartLife,
+      myPay,
+      oppPay,
+      starter: starter === myId ? 'me' : (starter ? 'opp' : null)
+    },
+    timestamp: Date.now()
+  };
+}
+function saveGameStateAndGo() {
+  const state = buildGameState();
+  const key = `osja_game_${roomCode || 'default'}`;
+  sessionStorage.setItem(key, JSON.stringify(state));
+  const q = roomCode ? `?room=${encodeURIComponent(roomCode)}` : '';
+  window.location.href = `battle.html${q}`;
+}
+/* ====== Ende NEU ====== */
+
 function renderAttackCard(a){
   const wrap=document.createElement('label'); wrap.className='card';
   const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=sel.has(a.n); cb.disabled=iAmReady;
   cb.addEventListener('change',()=>{
-    const wasNeeds = needsRangelei(); // Zustand VOR der Änderung
+    const wasNeeds = needsRangelei();
     if(cb.checked){
       if(selRangelei.has(a.n)) { cb.checked=false; log('Dieser Name ist bereits als Rangelei ausgewählt.', 'warn'); return; }
       if(sel.size >= allowedSlots()) { cb.checked=false; log('Attacken-Slots voll.', 'warn'); return; }
@@ -481,25 +511,22 @@ const screens=[...document.querySelectorAll('.screen')];
 const stepButtons=[...document.querySelectorAll('.step')];
 
 function gotoStep(idx){
-  currentStep = Math.max(0, Math.min(idx, 4)); // NEU: bis Step 4
+  currentStep = Math.max(0, Math.min(idx, 4));
 
-  // Screens/Stepper umschalten
   screens.forEach(s=>s.classList.toggle('active', Number(s.dataset.step)===currentStep));
   stepButtons.forEach((b,i)=>{
     b.classList.toggle('active', i===currentStep);
     b.classList.toggle('done', i<currentStep);
   });
 
-  // Buttons
   prevBtn.disabled = currentStep===0;
   nextBtn.textContent = currentStep===4 ? "Fertig" : "Weiter →";
 
-  // Beim Betreten von Schritt 2 Rangeleien neu rendern
   if (currentStep === 2) renderRangeleis();
 
-  // Review/Counter aktualisieren
   renderReviewLists();
   updateCounters();
+  updateBattleStartCta(); // NEU: Button-Zustand im letzten Step prüfen
 }
 
 stepper.addEventListener('click', (e)=>{
@@ -508,14 +535,41 @@ stepper.addEventListener('click', (e)=>{
 });
 
 prevBtn.addEventListener('click', ()=> gotoStep(currentStep-1));
-nextBtn.addEventListener('click', ()=>{
-  if(currentStep===1 && needsRangelei()){
-    gotoStep(2);
-  }else if(currentStep===2 && !needsRangelei()){
-    gotoStep(3);
-  }else{
-    gotoStep(Math.min(4, currentStep+1)); // bis zum neuen Pay-Step laufen
+
+/* ====== NEU: CTA im Pay-Step ====== */
+function updateBattleStartCta() {
+  if (currentStep !== 4) return;
+  if (starter) {
+    nextBtn.textContent = "Kampf beginnen";
+    nextBtn.disabled = false;
+  } else {
+    nextBtn.textContent = "Fertig";
+    nextBtn.disabled = true;
   }
+}
+/* ====== Ende NEU ====== */
+
+nextBtn.addEventListener('click', ()=>{
+  if (currentStep < 4) {
+    if(currentStep===1 && needsRangelei()){
+      gotoStep(2);
+    }else if(currentStep===2 && !needsRangelei()){
+      gotoStep(3);
+    }else{
+      gotoStep(Math.min(4, currentStep+1));
+    }
+    return;
+  }
+
+  // Step 4: Start nur, wenn Starter feststeht
+  if (!starter) {
+    log("Der Starter steht noch nicht fest. Bitte beide Beträge senden/abwarten.", "warn");
+    updateBattleStartCta();
+    return;
+  }
+
+  // Speichern & weiterleiten
+  saveGameStateAndGo();
 });
 
 /* ==== Ably / Lobby ==== */
@@ -531,10 +585,8 @@ async function refreshPresence(){
     const opp = members.find(m=>m.clientId!==myId);
     const oppId = opp?.clientId || null;
 
-    // Gegner-Status in der UI
     opIdEl.textContent = oppId || '–';
 
-    // Ready-Anzeige
     oppReady = !!(opp && opp.data && opp.data.ready===true);
     readyStateEl.textContent =
       iAmReady && oppReady ? 'Beide bereit (Passiv-Reveal folgt)…'
@@ -542,23 +594,17 @@ async function refreshPresence(){
       : oppReady ? 'Gegner ist bereit. Wähle deine Auswahl…'
       : 'Warten…';
 
-    // --- NEU: Gegner-Leave erkennen ---
-    // Fall A: Vorher gab es einen Gegner, jetzt nicht mehr -> Reset alles
     if (hadOpponent && !oppId) {
       await resetAfterOppLeave();
-      return; // danach nichts mehr tun
+      return;
     }
-
-    // Fall B: Es gibt (wieder) einen Gegner -> merken
     if (oppId) {
       hadOpponent = true;
       lastOppId = oppId;
     }
-
     await maybeRevealPassives();
   }catch(e){ log('Presence get Fehler: '+(e?.message||e),'err'); }
 }
-
 
 async function maybeRevealPassives(){
   if(revealed || !channel) return;
@@ -589,12 +635,10 @@ function updatePayViews(){
 }
 
 function showPayPanelIfReady(){
-  // erst nach beidseitigem Ready + Passiv-Reveal anzeigen/aktivieren
   if (!revealed) return;
   if (payUiShown) return;
   payUiShown = true;
 
-  // Hinweis ausblenden, Panel zeigen
   const hint = $("payHint");
   const gate = $("payGate");
   if (hint) hint.style.display = "none";
@@ -607,7 +651,6 @@ function showPayPanelIfReady(){
   const slider = $("paySlider");
   const num = $("payInput");
 
-  // Schrittweite & Max auf 5er anpassen
   const step = 5;
   const max5 = Math.floor(m / step) * step;
   slider.step = String(step);
@@ -615,7 +658,6 @@ function showPayPanelIfReady(){
   slider.max = String(max5);
   num.max = String(max5);
 
-  // aktuellen Wert auf 5er clampen
   myPay = Math.min(myPay, max5);
   myPay = Math.floor(myPay / step) * step;
 
@@ -624,6 +666,8 @@ function showPayPanelIfReady(){
 
   updatePayViews();
   $("sendPayBtn").disabled = false;
+
+  updateBattleStartCta(); // NEU
 }
 
 function tryResolveStarter(){
@@ -645,6 +689,7 @@ function tryResolveStarter(){
   const text = (who === myId) ? 'Du' : 'Gegner';
   $("starterView").textContent = text;
   log(`Startspieler: ${text}.`, 'ok');
+  updateBattleStartCta(); // NEU
 }
 
 function setConnected(on, code=''){
@@ -668,7 +713,7 @@ async function joinRoom(){
     if(presencePoll) clearInterval(presencePoll); presencePoll=setInterval(refreshPresence, 3000);
 
     channel.subscribe('passives_reveal', (msg)=>{
-      if(msg?.data?.playerId===myId) return; // eigene ignorieren
+      if(msg?.data?.playerId===myId) return;
       oppPassives = Array.isArray(msg.data.passives)? msg.data.passives : [];
       renderPassivesLists();
       log('Gegnerische Passivattacken eingetroffen.','ok');
@@ -676,7 +721,7 @@ async function joinRoom(){
     });
 
     channel.subscribe('life_pay', (msg)=>{
-      if(msg?.data?.playerId === myId) return; // eigene ignorieren
+      if(msg?.data?.playerId === myId) return;
       oppPay  = Number(msg.data.pay)  || 0;
       oppRoll = Number(msg.data.roll) || 0;
       $("oppPayView").textContent = String(oppPay);
@@ -696,7 +741,6 @@ async function leaveRoom(){
   iAmReady=false; oppReady=false; revealed=false; sel.clear(); selRangelei.clear(); myPassives=[]; oppPassives=[]; renderPassivesLists();
   renderAttacks(); renderRangeleis(); renderReviewLists();
 
-  // Pay-Phase vollständig zurücksetzen
   payUiShown = false;
   myStartLife = 500;
   myPay = 0;
@@ -726,29 +770,23 @@ async function leaveRoom(){
 }
 
 async function resetAfterOppLeave(){
-  // Präsenz-Flag zurücksetzen (ich bin nicht mehr "ready")
   try { if (channel) await channel.presence.update({ ready:false }); } catch {}
 
-  // Log-Hinweis
   log('Gegner hat die Lobby verlassen – alles wird zurückgesetzt.', 'warn');
 
-  // Selektion & Flags
   iAmReady=false; oppReady=false; revealed=false;
   sel.clear(); selRangelei.clear();
   myPassives=[]; oppPassives=[];
   renderPassivesLists();
 
-  // UI wieder freischalten
   document.querySelectorAll('#attacks input[type=checkbox]').forEach(cb=>cb.disabled=false);
   document.querySelectorAll('#rangeleis input[type=checkbox]').forEach(cb=>cb.disabled=false);
   readyBtn.disabled=true; clearSelBtn.disabled=true;
 
-  // Zähler, Listen, Filter
   filterEl.value=''; rangeleiFilterEl && (rangeleiFilterEl.value='');
   renderAttacks(); renderRangeleis(); renderReviewLists();
   updateCounters();
 
-  // Pay-Phase vollständig zurücksetzen (wie bei leaveRoom)
   payUiShown = false;
   myStartLife = 500;
   myPay = 0;
@@ -757,15 +795,15 @@ async function resetAfterOppLeave(){
   oppRoll = null;
   starter = null;
 
-  const payHintEl = document.getElementById('payHint');   // NEUER Step
+  const payHintEl = document.getElementById('payHint');
   const payGateEl = document.getElementById('payGate');
   if (payHintEl) payHintEl.style.display = '';
   if (payGateEl) payGateEl.style.display = 'none';
 
   const sld = document.getElementById('paySlider');
   const num = document.getElementById('payInput');
-  if (sld) { sld.value="0"; sld.max="300"; /* step bleibt 5 */ }
-  if (num) { num.value="0"; num.max="300"; /* step bleibt 5 */ }
+  if (sld) { sld.value="0"; sld.max="300"; }
+  if (num) { num.value="0"; num.max="300"; }
   const setText = (id, v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
   setText('startLife', "500");
   setText('myPayView',"0");
@@ -773,15 +811,11 @@ async function resetAfterOppLeave(){
   setText('oppPayView',"–");
   setText('starterView',"–");
 
-  // Gegner-UI zurücksetzen
   opIdEl.textContent = '–';
   hadOpponent = false;
   lastOppId = null;
 
-  // Zur Lobby springen
   gotoStep(0);
-
-  // Statuszeile aktualisieren
   readyStateEl.textContent = 'Warten…';
 }
 
@@ -814,7 +848,6 @@ $("paySlider")?.addEventListener('input', (e)=>{
   const step = 5;
   let v = Number(e.target.value) || 0;
   v = Math.round(v / step) * step;
-  // clamp auf Max (ist bereits 5er)
   const max5 = Number(e.target.max) || 0;
   if (v > max5) v = max5;
   myPay = v;
@@ -828,9 +861,7 @@ $("payInput")?.addEventListener('input', (e)=>{
   if (isNaN(v) || v < 0) v = 0;
   const maxAttr = Number(e.target.max) || maxPay();
   v = Math.min(v, maxAttr);
-  // auf 5er runden
   v = Math.round(v / step) * step;
-  // nochmal clampen falls Rundung > max
   if (v > maxAttr) v = maxAttr - (maxAttr % step);
   if (v < 0) v = 0;
   myPay = v;
@@ -841,7 +872,7 @@ $("payInput")?.addEventListener('input', (e)=>{
 // Leben bezahlen – senden
 $("sendPayBtn")?.addEventListener('click', async ()=>{
   if (!channel || !revealed) { log("Noch nicht bereit für die Zahlung.", "warn"); return; }
-  myRoll = Math.floor(Math.random() * 10000);  // fairer Tie-Break
+  myRoll = Math.floor(Math.random() * 10000);
   try{
     await channel.publish('life_pay', { playerId: myId, pay: myPay, roll: myRoll, startLife: myStartLife });
     $("sendPayBtn").disabled = true;
