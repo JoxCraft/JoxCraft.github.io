@@ -320,6 +320,7 @@ const RANGELEIEN = [
   {n:"Wieder normal", d:"Zerstöre eine Passivattacke.", t:["Schnell"]}
 ];
 
+const ALL_CARDS = [...ATTACKS, ...RANGELEIEN];
 /* ==== UI refs ==== */
 const $ = (id)=>document.getElementById(id);
 const logEl=$("log"), statusEl=$("status"), roomInfoEl=$("roomInfo"), readyStateEl=$("readyState");
@@ -360,7 +361,10 @@ const shortId=()=>Math.random().toString(36).slice(2,7);
 const collator = new Intl.Collator('de', { sensitivity: 'base' });
 
 function hasTag(a, tag){ return (a.t||[]).includes(tag); }
-function isPassiveName(name){ const a=ATTACKS.find(x=>x.n===name); return a && hasTag(a,'Passiv'); }
+function isPassiveName(name){
+  const a = ALL_CARDS.find(x => x.n === name);
+  return a && hasTag(a, 'Passiv');
+}
 function allowedSlots(){ return 4 + (sel.has('Verführerisches Angebot') ? 2 : 0); }
 function needsRangelei(){ return sel.has('Immer vorbereitet'); }
 function hasVA(){ return sel.has('Verführerisches Angebot'); }
@@ -510,7 +514,9 @@ function renderRangeleis(){
   updateCounters();
 }
 
-function listPassivesFromSelection(set){ return [...set].filter(isPassiveName); }
+function listPassivesFromSelection(){
+  return [...sel, ...selRangelei].filter(isPassiveName);
+}
 
 function renderReviewLists(){
   reviewAtt.innerHTML=''; reviewRan.innerHTML='';
@@ -626,7 +632,7 @@ async function maybeRevealPassives(){
     const bothReady = members.length===2 && members.every(m=>m.data && m.data.ready===true);
     if(!bothReady) return;
     revealed=true;
-    myPassives = listPassivesFromSelection(sel);
+    myPassives = listPassivesFromSelection();
     await channel.publish('passives_reveal', { playerId: myId, passives: myPassives });
     renderPassivesLists();
     log('Passivattacken offenbart.', 'ok');
