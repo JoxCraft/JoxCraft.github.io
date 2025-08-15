@@ -339,6 +339,8 @@ const nextBtn=$("nextBtn"), prevBtn=$("prevBtn");
 const rangeleiGate=document.getElementById('rangeleiGate'), rangeleiHint=document.getElementById('rangeleiHint');
 
 /* ==== State ==== */
+let lastOppId = null;         // zuletzt gesehener Gegner
+let hadOpponent = false;      // gab es vor kurzem einen Gegner?
 let client=null, channel=null; let myId=null, roomCode=null;
 let sel = new Set();            // Attacken
 let selRangelei = new Set();    // Rangeleien
@@ -525,13 +527,38 @@ async function refreshPresence(){
     const res = await channel.presence.get();
     const members = Array.isArray(res)? res : (res?.items||[]);
     onlineCountEl.textContent = String(members.length);
+
     const opp = members.find(m=>m.clientId!==myId);
-    opIdEl.textContent = opp?.clientId || '–';
+    const oppId = opp?.clientId || null;
+
+    // Gegner-Status in der UI
+    opIdEl.textContent = oppId || '–';
+
+    // Ready-Anzeige
     oppReady = !!(opp && opp.data && opp.data.ready===true);
-    readyStateEl.textContent = iAmReady && oppReady ? 'Beide bereit (Passiv-Reveal folgt)…' : iAmReady ? 'Du bist bereit. Warte auf Gegner…' : oppReady ? 'Gegner ist bereit. Wähle deine Auswahl…' : 'Warten…';
+    readyStateEl.textContent =
+      iAmReady && oppReady ? 'Beide bereit (Passiv-Reveal folgt)…'
+      : iAmReady ? 'Du bist bereit. Warte auf Gegner…'
+      : oppReady ? 'Gegner ist bereit. Wähle deine Auswahl…'
+      : 'Warten…';
+
+    // --- NEU: Gegner-Leave erkennen ---
+    // Fall A: Vorher gab es einen Gegner, jetzt nicht mehr -> Reset alles
+    if (hadOpponent && !oppId) {
+      await resetAfterOppLeave();
+      return; // danach nichts mehr tun
+    }
+
+    // Fall B: Es gibt (wieder) einen Gegner -> merken
+    if (oppId) {
+      hadOpponent = true;
+      lastOppId = oppId;
+    }
+
     await maybeRevealPassives();
   }catch(e){ log('Presence get Fehler: '+(e?.message||e),'err'); }
 }
+
 
 async function maybeRevealPassives(){
   if(revealed || !channel) return;
@@ -697,6 +724,67 @@ async function leaveRoom(){
   client=null; channel=null; myId=null; roomCode=null;
   gotoStep(0);
 }
+
+async function resetAfterOppLeave(){
+  // Präsenz-Flag zurücksetzen (ich bin nicht mehr "ready")
+  try { if (channel) await channel.presence.update({ ready:false }); } catch {}
+
+  // Log-Hinweis
+  log('Gegner hat die Lobby verlassen – alles wird zurückgesetzt.', 'warn');
+
+  // Selektion & Flags
+  iAmReady=false; oppReady=false; revealed=false;
+  sel.clear(); selRangelei.clear();
+  myPassives=[]; oppPassives=[];
+  renderPassivesLists();
+
+  // UI wieder freischalten
+  document.querySelectorAll('#attacks input[type=checkbox]').forEach(cb=>cb.disabled=false);
+  document.querySelectorAll('#rangeleis input[type=checkbox]').forEach(cb=>cb.disabled=false);
+  readyBtn.disabled=true; clearSelBtn.disabled=true;
+
+  // Zähler, Listen, Filter
+  filterEl.value=''; rangeleiFilterEl && (rangeleiFilterEl.value='');
+  renderAttacks(); renderRangeleis(); renderReviewLists();
+  updateCounters();
+
+  // Pay-Phase vollständig zurücksetzen (wie bei leaveRoom)
+  payUiShown = false;
+  myStartLife = 500;
+  myPay = 0;
+  oppPay = null;
+  myRoll = null;
+  oppRoll = null;
+  starter = null;
+
+  const payHintEl = document.getElementById('payHint');   // NEUER Step
+  const payGateEl = document.getElementById('payGate');
+  if (payHintEl) payHintEl.style.display = '';
+  if (payGateEl) payGateEl.style.display = 'none';
+
+  const sld = document.getElementById('paySlider');
+  const num = document.getElementById('payInput');
+  if (sld) { sld.value="0"; sld.max="300"; /* step bleibt 5 */ }
+  if (num) { num.value="0"; num.max="300"; /* step bleibt 5 */ }
+  const setText = (id, v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
+  setText('startLife', "500");
+  setText('myPayView',"0");
+  setText('myRemainView',"500");
+  setText('oppPayView',"–");
+  setText('starterView',"–");
+
+  // Gegner-UI zurücksetzen
+  opIdEl.textContent = '–';
+  hadOpponent = false;
+  lastOppId = null;
+
+  // Zur Lobby springen
+  gotoStep(0);
+
+  // Statuszeile aktualisieren
+  readyStateEl.textContent = 'Warten…';
+}
+
 
 /* ==== Events ==== */
 $("join").addEventListener('click', joinRoom);
