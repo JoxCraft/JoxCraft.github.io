@@ -87,6 +87,8 @@
       <div class="step" data-go="1">2) Attacken <span class="pill" id="selCount">0/4</span></div>
       <div class="step" data-go="2" id="stepRangelei">3) Rangeleien <span class="pill" id="rangeleiCount">0/3</span></div>
       <div class="step" data-go="3">4) Review & Ready</div>
+      <!-- NEU: eigener Step -->
+      <div class="step" data-go="4">5) Leben bezahlen</div>
     </div>
   </div>
 
@@ -184,18 +186,30 @@
             <ol id="oppPassives" class="help"></ol>
           </div>
         </div>
-                </div>
+      </div>
+    </section>
 
-              <!-- NEU: Leben bezahlen -->
-      <div class="panel" id="payPanel" style="display:none">
+    <!-- Screen 4: Leben bezahlen (NEU eigener Step) -->
+    <section class="screen" data-step="4">
+      <div class="panel" id="payHint">
+        <h2>Leben bezahlen</h2>
+        <div class="help">
+          Dieser Schritt wird freigeschaltet, sobald <b>beide "Bereit"</b> gesendet haben und die <b>Passivattacken offenbart</b> wurden.
+        </div>
+      </div>
+
+      <div class="panel" id="payGate" style="display:none">
         <h2>Leben bezahlen</h2>
         <div class="row">
           <div class="pill">Startleben: <span id="startLife">500</span></div>
-          <div class="pill">Minimum behalten: 200</div></div>
+          <div class="pill">Minimum behalten: 200</div>
+          <div class="pill">Schrittweite: 5</div>
+        </div>
 
         <div class="row" style="gap:12px;margin-top:8px">
-          <input type="range" id="paySlider" min="0" max="300" value="0" style="flex:1">
-          <input type="number" id="payInput" min="0" max="300" value="0" style="width:110px">
+          <!-- Schrittweite 5 -->
+          <input type="range" id="paySlider" min="0" max="300" value="0" step="5" style="flex:1">
+          <input type="number" id="payInput" min="0" max="300" value="0" step="5" style="width:110px">
           <div class="pill">Du bezahlst: <span id="myPayView">0</span></div>
           <div class="pill">Du behältst: <span id="myRemainView">500</span></div>
           <button id="sendPayBtn" class="secondary" disabled>Zahlung senden</button>
@@ -207,7 +221,7 @@
         </div>
 
         <div class="help" style="margin-top:8px">
-          Regel: Beide wählen verdeckt einen Betrag ≥0, sodass mind. 200 Leben übrig bleiben.
+          Regel: Beide wählen verdeckt einen Betrag ≥0, in Schritten von <b>5</b>, sodass mind. 200 Leben übrig bleiben.
           Wer mehr bezahlt, beginnt – bei Gleichstand zufällig. Passivattacken werden vor dem Bezahlen offenbart.
         </div>
       </div>
@@ -339,22 +353,17 @@ let oppRoll = null;
 let starter = null;
 let payUiShown = false;
 
-
 function log(msg, cls=""){ const d=new Date().toLocaleTimeString(); const div=document.createElement('div'); if(cls)div.classList.add(cls); div.textContent=`[${d}] ${msg}`; logEl.appendChild(div); logEl.scrollTop = logEl.scrollHeight; }
 const shortId=()=>Math.random().toString(36).slice(2,7);
 const collator = new Intl.Collator('de', { sensitivity: 'base' });
 
 function hasTag(a, tag){ return (a.t||[]).includes(tag); }
 function isPassiveName(name){ const a=ATTACKS.find(x=>x.n===name); return a && hasTag(a,'Passiv'); }
-function allowedSlots(){
-  // Basis 4; support für optionale Karte „Verführerisches Angebot“ falls später ergänzt
-  return 4 + (sel.has('Verführerisches Angebot') ? 2 : 0);
-}
+function allowedSlots(){ return 4 + (sel.has('Verführerisches Angebot') ? 2 : 0); }
 function needsRangelei(){ return sel.has('Immer vorbereitet'); }
 function hasVA(){ return sel.has('Verführerisches Angebot'); }
 function computeStartLife(){ return hasVA() ? 400 : 500; } // VA: -100 Leben, +2 Slots
 function maxPay(){ return Math.max(0, computeStartLife() - 200); } // mind. 200 behalten
-
 
 function updateCounters(){
   selCountEl.textContent = `${sel.size}/${allowedSlots()}`;
@@ -363,7 +372,7 @@ function updateCounters(){
   reviewAttCount.textContent = `${sel.size}/${allowedSlots()}`;
   reviewRanCount.textContent = `${selRangelei.size}/${needsRangelei()?3:0}`;
 
-  // ready-button nur im letzten Schritt und wenn alles passt
+  // ready-button nur im Review/Ready Step und wenn alles passt
   const okAttacks = sel.size === allowedSlots();
   const okRangelei = needsRangelei() ? selRangelei.size === 3 : true;
   readyBtn.disabled = !(client && !iAmReady && okAttacks && okRangelei && currentStep===3);
@@ -388,25 +397,21 @@ function renderAttackCard(a){
   const wrap=document.createElement('label'); wrap.className='card';
   const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=sel.has(a.n); cb.disabled=iAmReady;
   cb.addEventListener('change',()=>{
-  const wasNeeds = needsRangelei(); // Zustand VOR der Änderung
-
-  if(cb.checked){
-    if(selRangelei.has(a.n)) { cb.checked=false; log('Dieser Name ist bereits als Rangelei ausgewählt.', 'warn'); return; }
-    if(sel.size >= allowedSlots()) { cb.checked=false; log('Attacken-Slots voll.', 'warn'); return; }
-    sel.add(a.n);
-  } else {
-    sel.delete(a.n);
-  }
-
-  // WICHTIG: Wenn "Immer vorbereitet" (de)aktiviert wurde, Rangeleien sofort neu bauen
-  if (a.n === 'Immer vorbereitet' && wasNeeds !== needsRangelei()) {
-    if(!needsRangelei()) selRangelei.clear();
-    renderRangeleis();
-  }
-
-  renderReviewLists();
-  updateCounters();
-});
+    const wasNeeds = needsRangelei(); // Zustand VOR der Änderung
+    if(cb.checked){
+      if(selRangelei.has(a.n)) { cb.checked=false; log('Dieser Name ist bereits als Rangelei ausgewählt.', 'warn'); return; }
+      if(sel.size >= allowedSlots()) { cb.checked=false; log('Attacken-Slots voll.', 'warn'); return; }
+      sel.add(a.n);
+    } else {
+      sel.delete(a.n);
+    }
+    if (a.n === 'Immer vorbereitet' && wasNeeds !== needsRangelei()) {
+      if(!needsRangelei()) selRangelei.clear();
+      renderRangeleis();
+    }
+    renderReviewLists();
+    updateCounters();
+  });
   const box=document.createElement('div');
   const title=document.createElement('div'); title.className='title'; title.textContent=a.n;
   const tags=document.createElement('div'); tags.className='tags'; (a.t||[]).forEach(t=>{ const chip=document.createElement('span'); chip.className='chip'; chip.textContent=t; tags.appendChild(chip); });
@@ -474,7 +479,7 @@ const screens=[...document.querySelectorAll('.screen')];
 const stepButtons=[...document.querySelectorAll('.step')];
 
 function gotoStep(idx){
-  currentStep = Math.max(0, Math.min(idx, 3));
+  currentStep = Math.max(0, Math.min(idx, 4)); // NEU: bis Step 4
 
   // Screens/Stepper umschalten
   screens.forEach(s=>s.classList.toggle('active', Number(s.dataset.step)===currentStep));
@@ -485,9 +490,9 @@ function gotoStep(idx){
 
   // Buttons
   prevBtn.disabled = currentStep===0;
-  nextBtn.textContent = currentStep===3 ? "Fertig" : "Weiter →";
+  nextBtn.textContent = currentStep===4 ? "Fertig" : "Weiter →";
 
-  // WICHTIG: Beim Betreten von Schritt 2 Rangeleien neu rendern
+  // Beim Betreten von Schritt 2 Rangeleien neu rendern
   if (currentStep === 2) renderRangeleis();
 
   // Review/Counter aktualisieren
@@ -507,7 +512,7 @@ nextBtn.addEventListener('click', ()=>{
   }else if(currentStep===2 && !needsRangelei()){
     gotoStep(3);
   }else{
-    gotoStep(Math.min(3, currentStep+1));
+    gotoStep(Math.min(4, currentStep+1)); // bis zum neuen Pay-Step laufen
   }
 });
 
@@ -557,9 +562,16 @@ function updatePayViews(){
 }
 
 function showPayPanelIfReady(){
-  // erst nach beidseitigem Ready + Passiv-Reveal anzeigen
-  if (!revealed || payUiShown === true) return;
+  // erst nach beidseitigem Ready + Passiv-Reveal anzeigen/aktivieren
+  if (!revealed) return;
+  if (payUiShown) return;
   payUiShown = true;
+
+  // Hinweis ausblenden, Panel zeigen
+  const hint = $("payHint");
+  const gate = $("payGate");
+  if (hint) hint.style.display = "none";
+  if (gate) gate.style.display = "";
 
   myStartLife = computeStartLife();
   $("startLife").textContent = String(myStartLife);
@@ -567,19 +579,27 @@ function showPayPanelIfReady(){
   const m = maxPay();
   const slider = $("paySlider");
   const num = $("payInput");
-  slider.max = m; num.max = m;
 
-  myPay = Math.min(myPay, m);
+  // Schrittweite & Max auf 5er anpassen
+  const step = 5;
+  const max5 = Math.floor(m / step) * step;
+  slider.step = String(step);
+  num.step = String(step);
+  slider.max = String(max5);
+  num.max = String(max5);
+
+  // aktuellen Wert auf 5er clampen
+  myPay = Math.min(myPay, max5);
+  myPay = Math.floor(myPay / step) * step;
+
   slider.value = String(myPay);
   num.value = String(myPay);
 
   updatePayViews();
-  $("payPanel").style.display = "";
   $("sendPayBtn").disabled = false;
 }
 
 function tryResolveStarter(){
-  // brauchen: meine Zahlung + Wurf + gegnerische Zahlung + Wurf
   if (myRoll == null || oppRoll == null || oppPay == null) return;
 
   const me = myPay;
@@ -589,7 +609,6 @@ function tryResolveStarter(){
   if (me > op) who = myId;
   else if (me < op) who = 'op';
   else {
-    // Gleichstand: zufällig per Roll; Fallback clientId
     if (myRoll > oppRoll) who = myId;
     else if (myRoll < oppRoll) who = 'op';
     else who = (myId < (opIdEl.textContent || '')) ? myId : 'op';
@@ -600,8 +619,6 @@ function tryResolveStarter(){
   $("starterView").textContent = text;
   log(`Startspieler: ${text}.`, 'ok');
 }
-
-
 
 function setConnected(on, code=''){
   statusEl.textContent = on ? `verbunden: ${code}` : 'offline';
@@ -622,20 +639,22 @@ async function joinRoom(){
     await channel.presence.enter({ ready:false });
     await refreshPresence();
     if(presencePoll) clearInterval(presencePoll); presencePoll=setInterval(refreshPresence, 3000);
+
     channel.subscribe('passives_reveal', (msg)=>{
-  if(msg?.data?.playerId===myId) return; // eigene ignorieren
-  oppPassives = Array.isArray(msg.data.passives)? msg.data.passives : [];
-  renderPassivesLists();
-  log('Gegnerische Passivattacken eingetroffen.','ok');
-  showPayPanelIfReady();
-});
+      if(msg?.data?.playerId===myId) return; // eigene ignorieren
+      oppPassives = Array.isArray(msg.data.passives)? msg.data.passives : [];
+      renderPassivesLists();
+      log('Gegnerische Passivattacken eingetroffen.','ok');
+      showPayPanelIfReady();
+    });
+
     channel.subscribe('life_pay', (msg)=>{
-  if(msg?.data?.playerId === myId) return; // eigene ignorieren
-  oppPay  = Number(msg.data.pay)  || 0;
-  oppRoll = Number(msg.data.roll) || 0;
-  $("oppPayView").textContent = String(oppPay);
-  tryResolveStarter();
-});
+      if(msg?.data?.playerId === myId) return; // eigene ignorieren
+      oppPay  = Number(msg.data.pay)  || 0;
+      oppRoll = Number(msg.data.roll) || 0;
+      $("oppPayView").textContent = String(oppPay);
+      tryResolveStarter();
+    });
 
   });
   client.connection.on((s)=>{ if(['closed','failed','suspended','disconnected'].includes(s.current)){ setConnected(false); if(presencePoll){clearInterval(presencePoll); presencePoll=null;} } });
@@ -649,31 +668,33 @@ async function leaveRoom(){
   roomInfoEl.textContent='–'; onlineCountEl.textContent='0'; opIdEl.textContent='–'; readyStateEl.textContent='Warten…';
   iAmReady=false; oppReady=false; revealed=false; sel.clear(); selRangelei.clear(); myPassives=[]; oppPassives=[]; renderPassivesLists();
   renderAttacks(); renderRangeleis(); renderReviewLists();
-  // --- Pay-Phase vollständig zurücksetzen (Schritt 9) ---
-payUiShown = false;
-myStartLife = 500;
-myPay = 0;
-oppPay = null;
-myRoll = null;
-oppRoll = null;
-starter = null;
 
-const payPanelEl = document.getElementById('payPanel');
-if (payPanelEl) {
-  payPanelEl.style.display = 'none';
-  // UI-Elemente auch zurücksetzen, falls sie schon existieren
+  // Pay-Phase vollständig zurücksetzen
+  payUiShown = false;
+  myStartLife = 500;
+  myPay = 0;
+  oppPay = null;
+  myRoll = null;
+  oppRoll = null;
+  starter = null;
+
+  const payHintEl = document.getElementById('payHint');
+  const payGateEl = document.getElementById('payGate');
+  if (payHintEl) payHintEl.style.display = '';
+  if (payGateEl) payGateEl.style.display = 'none';
+
   const sld = document.getElementById('paySlider');
   const num = document.getElementById('payInput');
-  if (sld) sld.value = "0";
-  if (num) num.value = "0";
+  if (sld) { sld.value = "0"; sld.max="300"; sld.step="5"; }
+  if (num) { num.value = "0"; num.max="300"; num.step="5"; }
   const setText = (id, v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
   setText('myPayView',"0");
   setText('myRemainView',"500");
   setText('oppPayView',"–");
   setText('starterView',"–");
-}
 
-  log('Verlassen.'); client=null; channel=null; myId=null; roomCode=null;
+  log('Verlassen.');
+  client=null; channel=null; myId=null; roomCode=null;
   gotoStep(0);
 }
 
@@ -700,25 +721,37 @@ $("readyBtn").addEventListener('click', async ()=>{
   await refreshPresence();
 });
 
-// Leben bezahlen – UI
-$("paySlider").addEventListener('input', (e)=>{
-  myPay = Number(e.target.value) || 0;
+// Leben bezahlen – UI (5er Schritte)
+$("paySlider")?.addEventListener('input', (e)=>{
+  const step = 5;
+  let v = Number(e.target.value) || 0;
+  v = Math.round(v / step) * step;
+  // clamp auf Max (ist bereits 5er)
+  const max5 = Number(e.target.max) || 0;
+  if (v > max5) v = max5;
+  myPay = v;
   $("payInput").value = String(myPay);
   updatePayViews();
 });
 
-$("payInput").addEventListener('input', (e)=>{
+$("payInput")?.addEventListener('input', (e)=>{
+  const step = 5;
   let v = Number(e.target.value);
   if (isNaN(v) || v < 0) v = 0;
-  const m = maxPay();
-  if (v > m) v = m;
+  const maxAttr = Number(e.target.max) || maxPay();
+  v = Math.min(v, maxAttr);
+  // auf 5er runden
+  v = Math.round(v / step) * step;
+  // nochmal clampen falls Rundung > max
+  if (v > maxAttr) v = maxAttr - (maxAttr % step);
+  if (v < 0) v = 0;
   myPay = v;
   $("paySlider").value = String(myPay);
   updatePayViews();
 });
 
 // Leben bezahlen – senden
-$("sendPayBtn").addEventListener('click', async ()=>{
+$("sendPayBtn")?.addEventListener('click', async ()=>{
   if (!channel || !revealed) { log("Noch nicht bereit für die Zahlung.", "warn"); return; }
   myRoll = Math.floor(Math.random() * 10000);  // fairer Tie-Break
   try{
@@ -730,7 +763,6 @@ $("sendPayBtn").addEventListener('click', async ()=>{
     log('Zahlung senden fehlgeschlagen: ' + (e?.message || e), 'err');
   }
 });
-
 
 /* ==== Initial ==== */
 renderAttacks(); renderRangeleis(); renderReviewLists(); updateCounters(); gotoStep(0);
