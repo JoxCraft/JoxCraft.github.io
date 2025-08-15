@@ -327,10 +327,13 @@ function renderActions(){
 
     if(actor.id==='me'){
       actions = [...state.me.knownAttacks];
+      readOnly = false;
     } else if(actor.id==='opp'){
+      // Gegner: Passiven (nur Anzeige) + bekannte Attacken (nur Anzeige)
       actions = [...state.opp.passives].map(p=>`${p} (Passiv)`).concat([...state.opp.knownAttacks]);
-      readOnly=true;
+      readOnly = true;
     } else {
+      // Monster
       if(actor.atk>0 && actor.canAttack!==false){ actions.push(`Monsterangriff (${actor.atk})`); }
       if(actor.passives) actions = actions.concat([...actor.passives].map(p=>`${p} (Passiv)`));
       if(actor.knownAttacks) actions = actions.concat([...actor.knownAttacks]);
@@ -343,20 +346,20 @@ function renderActions(){
     const row=document.createElement('div'); row.className='atk';
     const left=document.createElement('div');
     const desc=getAttackDesc(a);
-    left.innerHTML = `<b>${a}</b>${desc?`<div class=\"small\">${desc}</div>`:''}`;
+    left.innerHTML = `<b>${a}</b>${desc?`<div class="small">${desc}</div>`:''}`;
     const right=document.createElement('div');
     if(!readOnly && isOwn(actor?.id)){
       const btn=document.createElement('button'); btn.textContent='Wählen';
       btn.onclick=()=>{ state.selection.action=a; renderActions(); renderPriority(); };
       right.appendChild(btn);
     } else {
-      right.innerHTML = `<span class=\"small muted\">Nur Anzeige</span>`;
+      right.innerHTML = `<span class="small muted">Nur Anzeige</span>`;
     }
     row.appendChild(left); row.appendChild(right);
     if(state.selection.action===a){ row.style.outline='2px solid #2563eb'; }
     atkList.appendChild(row);
   });
-  if(actions.length===0){ atkList.innerHTML = `<div class=\"small\">Für diese Einheit sind noch keine Attacken bekannt.</div>`; }
+  if(actions.length===0){ atkList.innerHTML = `<div class="small">Für diese Einheit sind noch keine Attacken bekannt.</div>`; }
 }
 
 function renderAll(){ renderHpBars(); renderUnits(); renderActions(); renderPriority(); renderLog(); }
@@ -481,7 +484,7 @@ const ATK = {
   'Hartes Training': { needsTarget:false, run: ({actorId})=>Engine.addRage({srcId:actorId,amount:10}) },
   'Messerstich': { needsTarget:true, run: ({actorId,targetId})=>Engine.damage({srcId:actorId,tgtId:targetId,base:20,modifiable:true,label:'Messerstich'}) },
   'Messerwürfe': { needsTarget:true, run: ({actorId,targetId})=>{ for(let i=0;i<4;i++) Engine.damage({srcId:actorId,tgtId:targetId,base:20,modifiable:true,label:'Messerwürfe',consume:i===3}); } },
-  'Letzter Wille': { needsTarget:true, run: ({actorId,targetId})=>{ for(let i=0;i<5;i++) Engine.damage({srcId:actorId,tgtId:targetId,base:20,modifiable:true,label:'Letzter Wille',consume:i===4}); } },
+  'Letzter Wille': { needsTarget:true, run: ({actorId,targetId})=>{ for(let i=0;i<5;i++) Engine.damage({srcId:actorId,tgtId:targetId,base:20,modifiable:true,label:'Letzter Wille',consume=i===4}); } },
   'Finale': { needsTarget:true, run: ({actorId,targetId})=>Engine.damage({srcId:actorId,tgtId:targetId,base:150,modifiable:true,label:'Finale'}) },
   'Seelenschlag': { needsTarget:true, run: ({actorId,targetId})=>{ Engine.damage({srcId:actorId,tgtId:targetId,base:120,modifiable:true,label:'Seelenschlag'}); Engine.damage({srcId:actorId,tgtId:actorId,base:50,modifiable:false,label:'Selbstschaden'}); } },
   'Gleichheit': { needsTarget:false, run: ({actorId})=>{ const enemy = actorId==='me'? state.opp : state.me; const me = actorId==='me'? state.me : state.opp; enemy.hp = Math.min(enemy.maxHp, me.hp); logLine({who: (actorId==='me'?'me':'opp'), text:`Gleicht die gegnerischen Leben auf ${enemy.hp} an.`}); } },
@@ -628,6 +631,7 @@ function applyFromShared(payload, v){
   state.opp = inflateUnit(remote.me); state.opp.id='opp';
   state.myMonsters = remote.oppMonsters.map(inflateUnit);
   state.oppMonsters = remote.myMonsters.map(inflateUnit);
+  // Log-Perspektive spiegeln
   state.log = (remote.log||[]).map(e=>({ ...e, who: e.who==='me'?'opp':e.who==='opp'?'me':e.who }));
 
   renderAll();
