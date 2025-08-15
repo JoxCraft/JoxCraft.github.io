@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>OsJa – Battle</title>
+  <style>
+    :root{
+      --bg:#0b0f14; --panel:#121a2a; --line:#1f2937; --muted:#9aa7b6;
+      --me:#38bdf8; --opp:#f472b6; --sys:#a3e635; --accent:#60a5fa;
+      --ok:#86efac; --warn:#facc15; --err:#fca5a5;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;background:var(--bg);color:#e6eef7;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    a{color:var(--accent)}
+    .wrap{max-width:1200px;margin:0 auto;padding:16px}
+    .cols{display:grid;grid-template-columns:300px 1fr 320px;gap:12px}
+    .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;min-height:120px}
+    h1{margin:0 0 10px;font-size:18px}
+    h2{margin:6px 0 8px;font-size:16px}
+    .muted{color:var(--muted);font-size:13px}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    button,select,input{background:#0f1420;color:#e6eef7;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:14px}
+    button.primary{background:#2563eb;border:0}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    /* Log */
+    .log{max-height:60vh;overflow:auto;font-size:13px;line-height:1.35}
+    .log .it{padding:6px 8px;border-bottom:1px solid #0e1420}
+    .tag{font-weight:700;margin-right:6px}
+    .me{color:var(--me)} .opp{color:var(--opp)} .sys{color:var(--sys)}
+    .dmg{color:#f87171} .heal{color:#86efac}
+    /* Board */
+    .board{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .side{border:1px dashed var(--line);border-radius:10px;padding:8px}
+    .side h3{margin:4px 0 8px;font-size:14px}
+    .unit{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#0f1420;border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:6px;cursor:pointer}
+    .unit.sel{outline:2px solid var(--accent)}
+    .hp{font-family:ui-monospace,Menlo,monospace}
+    .pill{border:1px solid var(--line);border-radius:999px;padding:2px 8px;font-size:12px;background:#0b0f14}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+    /* Right panel */
+    .atklist{max-height:42vh;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:6px;background:#0f1420}
+    .atk{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:6px;border-bottom:1px solid #0e1420}
+    .atk:last-child{border-bottom:0}
+    .small{font-size:12px;color:var(--muted)}
+    .footer{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:10px}
+    .warnb{color:var(--warn)}
+    @media (max-width:1024px){ .cols{grid-template-columns:1fr} .atklist{max-height:none} .log{max-height:none} }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <h1>OsJa – Battle</h1>
+      <div class="row">
+        <a href="index.html">← Zurück</a>
+        <span class="pill" id="turnInfo">Priority: –</span>
+      </div>
+    </div>
+
+    <div class="cols">
+      <!-- LEFT: LOG -->
+      <div class="panel">
+        <h2>Game Log</h2>
+        <div class="log" id="log"></div>
+      </div>
+
+      <!-- MIDDLE: BOARD -->
+      <div class="panel">
+        <h2>Spielfeld</h2>
+        <div class="board">
+          <div class="side" id="meSide">
+            <h3>Du <span class="pill hp" id="meHpPill">–</span> <span class="pill" id="meRage">Wut: 0</span></h3>
+            <div class="unit" id="meChar"></div>
+            <div class="grid2" style="margin-top:6px">
+              <div>
+                <div class="row" style="justify-content:space-between"><b>Deine Monster</b>
+                  <button id="addMyMon" class="small">+ Monster</button>
+                </div>
+                <div id="myMonsters"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="side" id="oppSide">
+            <h3>Gegner <span class="pill hp" id="oppHpPill">–</span> <span class="pill" id="oppRage">Wut: 0</span></h3>
+            <div class="unit" id="oppChar"></div>
+            <div class="grid2" style="margin-top:6px">
+              <div>
+                <div class="row" style="justify-content:space-between"><b>Gegnerische Monster</b>
+                  <button id="addOppMon" class="small">+ Monster</button>
+                </div>
+                <div id="oppMonsters"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="muted" style="margin-top:6px">Tipp: Klicke auf dich/deine Monster, wähle rechts eine Attacke und unten „Fertig“.</div>
+      </div>
+
+      <!-- RIGHT: ACTIONS -->
+      <div class="panel">
+        <h2>Aktionen</h2>
+        <div class="muted" id="selInfo">Kein Ziel/Charakter ausgewählt.</div>
+
+        <div style="margin:8px 0">
+          <div class="atklist" id="atkList"></div>
+        </div>
+
+        <div class="row">
+          <label>Target:
+            <select id="targetSel"></select>
+          </label>
+        </div>
+
+        <div class="footer">
+          <div class="row">
+            <button id="passBtn" class="secondary">Passen</button>
+          </div>
+          <div class="row">
+            <button id="commitBtn" class="primary">Fertig</button>
+          </div>
+        </div>
+
+        <div class="muted" style="margin-top:8px">
+          Priority: Nur der Spieler mit Priority darf ausführen/passen. Danach wechselt Priority.
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ======================
+   GAME STATE IMPORT
+====================== */
+const params = new URLSearchParams(location.search);
+const room = params.get('room') || 'default';
+const key = `osja_game_${room}`;
+const raw = sessionStorage.getItem(key);
+if (!raw) {
+  alert("Kein Game-State gefunden. Zurück zur Auswahl.");
+  location.href = "index.html";
+}
+const gs = JSON.parse(raw);
+
+// Ableitungen aus Auswahl/Passiven/Zahlung (aus deiner Auswahl-Seite)
+const meStart = Number(gs.life?.myStartLife||500) - Number(gs.life?.myPay||0);
+const oppHadVA = (gs.passives?.opp||[]).includes("Verführerisches Angebot"); // 400 Startleben bei VA
+const oppStartBase = oppHadVA ? 400 : 500; // gemäss Regeln/Passivliste
+const oppStart = oppStartBase - Number(gs.life?.oppPay||0);
+
+// bekannte Attacken
+const myKnownAttacks = new Set(gs.selections?.attacks || []);
+const oppKnownAttacks = new Set(gs.passives?.opp || []); // Start: wir kennen sicher deren Passiv-Reveal
+
+/* ======================
+   CORE MODEL
+====================== */
+let idSeq = 1;
+const newId = () => `id_${idSeq++}`;
+
+const state = {
+  priority: gs.life?.starter === 'me' ? 'me' : 'opp', // wer beginnt
+  me: {
+    id: 'me',
+    name: gs.myId || 'Me',
+    hp: meStart,
+    maxHp: meStart, // nach Zahlung
+    rage: 0,
+    nextDamageBonus: 0,
+    passives: new Set(gs.passives?.me || []),
+    knownAttacks: new Set(myKnownAttacks),
+    mods: { // eingehende Schadenreduktion usw.
+      dmgTakenFlatMinus: 0
+    }
+  },
+  opp: {
+    id: 'opp',
+    name: gs.oppId || 'Opponent',
+    hp: oppStart,
+    maxHp: oppStartBase, // vor Zahlung, damit Max-Leben klar ist
+    rage: 0,
+    nextDamageBonus: 0,
+    passives: new Set(gs.passives?.opp || []),
+    knownAttacks: new Set(oppKnownAttacks),
+    mods: {
+      dmgTakenFlatMinus: 0
+    }
+  },
+  myMonsters: [],
+  oppMonsters: [],
+  selection: { actor:null, action:null, target:null }
+};
+
+/* Passiv: Metallschild -> -10 eingehender Schaden */
+if (state.me.passives.has("Metallschild")) state.me.mods.dmgTakenFlatMinus += 10;
+if (state.opp.passives.has("Metallschild")) state.opp.mods.dmgTakenFlatMinus += 10;
+
+/* ======================
+   LOGGING
+====================== */
+const logEl = document.getElementById('log');
+function logLine({who='sys', text='', cls=''}) {
+  const div = document.createElement('div');
+  div.className = `it ${cls}`;
+  const tag = document.createElement('span');
+  tag.className = `tag ${who==='me'?'me':who==='opp'?'opp':'sys'}`;
+  tag.textContent = who==='me' ? '[ME]' : who==='opp' ? '[OPP]' : '[SYS]';
+  div.appendChild(tag);
+  const span = document.createElement('span');
+  span.innerHTML = text;
+  div.appendChild(span);
+  logEl.appendChild(div);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function logDamage(who, fromName, toName, amt) {
+  logLine({who, text:`<span class="dmg">-${amt} HP</span> ${toName} durch <b>${fromName}</b>.`});
+}
+function logHeal(who, targetName, amt) {
+  logLine({who, text:`<span class="heal">+${amt} HP</span> für <b>${targetName}</b>.`});
+}
+function logGainLife(who, targetName, amt) {
+  logLine({who, text:`<span class="heal">+${amt} Max-HP</span> & HP für <b>${targetName}</b>.`});
+}
+
+/* ======================
+   RENDER
+====================== */
+const $ = (id)=>document.getElementById(id);
+const meHpPill = $("meHpPill");
+const oppHpPill = $("oppHpPill");
+const meRage = $("meRage");
+const oppRage = $("oppRage");
+const turnInfo = $("turnInfo");
+const meChar = $("meChar");
+const oppChar = $("oppChar");
+const myMonWrap = $("myMonsters");
+const oppMonWrap = $("oppMonsters");
+const atkList = $("atkList");
+const selInfo = $("selInfo");
+const targetSel = $("targetSel");
+const commitBtn = $("commitBtn");
+const passBtn = $("passBtn");
+
+function fmtHP(u){ return `${u.hp}/${u.maxHp}`; }
+
+function renderHpBars(){
+  meHpPill.textContent = fmtHP(state.me);
+  oppHpPill.textContent = fmtHP(state.opp);
+  meRage.textContent = `Wut: ${state.me.rage}`;
+  oppRage.textContent = `Wut: ${state.opp.rage}`;
+}
+function renderPriority(){
+  turnInfo.textContent = `Priority: ${state.priority==='me'?'Du':'Gegner'}`;
+  commitBtn.disabled = !(state.priority==='me' && state.selection.actor && state.selection.action);
+  passBtn.disabled = !(state.priority==='me');
+}
+function renderUnits(){
+  // main chars
+  meChar.innerHTML = `
+    <div><b>Du</b></div>
+    <div class="hp">${fmtHP(state.me)}</div>`;
+  meChar.className = 'unit' + (state.selection.actor==='me' ? ' sel':'');
+  oppChar.innerHTML = `
+    <div><b>Gegner</b></div>
+    <div class="hp">${fmtHP(state.opp)}</div>`;
+  oppChar.className = 'unit' + (state.selection.actor==='opp' ? ' sel':'');
+  meChar.onclick = ()=>selectActor('me');
+  oppChar.onclick = ()=>selectActor('opp');
+
+  // monsters
+  myMonWrap.innerHTML='';
+  state.myMonsters.forEach(m=>{
+    const d=document.createElement('div');
+    d.className='unit'+(state.selection.actor===m.id?' sel':'');
+    d.innerHTML=`<div>${m.name}</div><div class="hp">${fmtHP(m)}</div>`;
+    d.onclick=()=>selectActor(m.id);
+    myMonWrap.appendChild(d);
+  });
+  oppMonWrap.innerHTML='';
+  state.oppMonsters.forEach(m=>{
+    const d=document.createElement('div');
+    d.className='unit'+(state.selection.actor===m.id?' sel':'');
+    d.innerHTML=`<div>${m.name}</div><div class="hp">${fmtHP(m)}</div>`;
+    d.onclick=()=>selectActor(m.id);
+    oppMonWrap.appendChild(d);
+  });
+
+  // target select
+  targetSel.innerHTML='';
+  getAllUnits().forEach(u=>{
+    const opt=document.createElement('option');
+    opt.value=u.id; opt.textContent=`${u.side==='me'?'[ME]':'[OPP]'} ${u.name}`;
+    targetSel.appendChild(opt);
+  });
+  if (state.selection.target) targetSel.value = state.selection.target;
+}
+
+function renderActions(){
+  const actor = getUnit(state.selection.actor);
+  let actions=[];
+  if(!actor){
+    selInfo.textContent='Kein Ziel/Charakter ausgewählt.';
+  }else{
+    selInfo.textContent = `Ausgewählt: ${actor.side==='me'?'[ME]':'[OPP]'} ${actor.name}`;
+    // Aktionen: Wenn es dein Actor ist → zeige deine bekannten Attacken.
+    // Für Gegner/Monsters: zeige deren bekannte Attacken (beim Gegner zunächst nur Passives).
+    if(actor.side==='me'){
+      actions = [...state.me.knownAttacks];
+    }else if(actor.side==='opp'){
+      actions = [...state.opp.knownAttacks];
+    }else{
+      actions = [...(actor.knownAttacks||[])];
+    }
+  }
+  atkList.innerHTML='';
+  actions.forEach(a=>{
+    const row=document.createElement('div'); row.className='atk';
+    const left=document.createElement('div');
+    left.innerHTML = `<b>${a}</b>`;
+    const right=document.createElement('div');
+    const btn=document.createElement('button'); btn.textContent='Wählen';
+    btn.onclick=()=>{ state.selection.action=a; renderActions(); renderPriority(); };
+    right.appendChild(btn);
+    row.appendChild(left); row.appendChild(right);
+    if(state.selection.action===a){
+      row.style.outline='2px solid #2563eb';
+    }
+    atkList.appendChild(row);
+  });
+  if(actions.length===0){
+    atkList.innerHTML = `<div class="small">Für diese Einheit sind noch keine Attacken bekannt.</div>`;
+  }
+}
+
+function renderAll(){ renderHpBars(); renderUnits(); renderActions(); renderPriority(); }
+renderAll();
+
+/* ======================
+   SELECTION
+====================== */
+function selectActor(id){
+  state.selection.actor=id;
+  // Zielvorauswahl: gehe standardmäßig auf Gegenseite
+  const actor = getUnit(id);
+  const defaultTarget = (actor?.side==='me' ? state.opp.id : state.me.id);
+  state.selection.target = defaultTarget;
+  renderAll();
+}
+
+targetSel.addEventListener('change', ()=>{ state.selection.target = targetSel.value; renderPriority(); });
+
+/* ======================
+   UTILS / MODEL ACCESS
+====================== */
+function getAllUnits(){
+  return [
+    {...state.me, side:'me'},
+    ...state.myMonsters.map(m=>({...m, side:'me'})),
+    {...state.opp, side:'opp'},
+    ...state.oppMonsters.map(m=>({...m, side:'opp'})),
+  ];
+}
+function getUnit(id){
+  if(!id) return null;
+  if(id==='me') return {...state.me, side:'me'};
+  if(id==='opp') return {...state.opp, side:'opp'};
+  const m1=state.myMonsters.find(x=>x.id===id); if(m1) return {...m1, side:'me'};
+  const m2=state.oppMonsters.find(x=>x.id===id); if(m2) return {...m2, side:'opp'};
+  return null;
+}
+function refUnit(id){
+  if(id==='me') return state.me;
+  if(id==='opp') return state.opp;
+  let r=state.myMonsters.find(x=>x.id===id); if(r) return r;
+  r=state.oppMonsters.find(x=>x.id===id); if(r) return r;
+  return null;
+}
+function clampHp(u){ u.hp = Math.max(0, Math.min(u.hp, u.maxHp)); }
+
+/* ======================
+   CORE ENGINE (Basics)
+====================== */
+const Engine = {
+  damage({srcId, tgtId, base, modifiable=true, label='Attacke'}){
+    const src = refUnit(srcId), tgt = refUnit(tgtId);
+    if(!src || !tgt) return;
+
+    // Ausgangsschaden
+    let dmg = base;
+
+    // nur für modifizierbare Schaden:
+    if (modifiable) {
+      // Buffs beim Angreifer: nextDamageBonus + rage
+      const bonus = (src.nextDamageBonus||0) + (src.rage||0);
+      dmg += bonus;
+      // Verbrauch der "nächste Attacke"-Buffs und Rage
+      src.nextDamageBonus = 0;
+      src.rage = 0;
+
+      // eingehende Reduktion des Ziels (z. B. Metallschild -10)
+      const red = (tgt.mods?.dmgTakenFlatMinus||0);
+      dmg = Math.max(0, dmg - red);
+    }
+
+    tgt.hp -= dmg;
+    clampHp(tgt);
+    logDamage(src.side||'me', label, tgt.name||tgt.id, dmg);
+  },
+  heal({tgtId, amount}){
+    const t = refUnit(tgtId); if(!t) return;
+    const before = t.hp;
+    t.hp = Math.min(t.maxHp, t.hp + amount);
+    const healed = t.hp - before;
+    logHeal(t.side||'me', t.name||t.id, healed);
+  },
+  gainLife({tgtId, amount}){
+    const t = refUnit(tgtId); if(!t) return;
+    t.maxHp += amount;
+    t.hp += amount; // sofort auch aktuelle HP erhöhen
+    logGainLife(t.side||'me', t.name||t.id, amount);
+  },
+  addNextDamageBonus({srcId, amount, label}){
+    const s = refUnit(srcId); if(!s) return;
+    s.nextDamageBonus = (s.nextDamageBonus||0) + amount;
+    logLine({who:s.side||'me', text:`${label||'Bonus'}: +${amount} auf nächste Schadensattacke.`});
+  },
+  addRage({srcId, amount}){
+    const s = refUnit(srcId); if(!s) return;
+    s.rage = (s.rage||0) + amount;
+    logLine({who:s.side||'me', text:`Wut +${amount}.`});
+  }
+};
+
+/* ======================
+   ATTACKS REGISTRY (Template)
+   - Hier implementierst du konkrete Attacken
+   - Rückgabe: {needsTarget:boolean, run:(ctx)=>void}
+====================== */
+const ATK = {
+  // Beispiel: einfacher Schaden
+  "Schwertschlag": {
+    needsTarget:true,
+    run: ({actorId,targetId})=>{
+      Engine.damage({srcId:actorId,tgtId:targetId,base:100,modifiable:true,label:"Schwertschlag"});
+    }
+  },
+  "Verrat": { // 80 Schaden, modifizierbar
+    needsTarget:true,
+    run: ({actorId,targetId})=>{
+      Engine.damage({srcId:actorId,tgtId:targetId,base:80,modifiable:true,label:"Verrat"});
+    }
+  },
+  "Sicherer Schlag": { // 90 Schaden, "Schaden nicht veränderbar"
+    needsTarget:true,
+    run: ({actorId,targetId})=>{
+      Engine.damage({srcId:actorId,tgtId:targetId,base:90,modifiable:false,label:"Sicherer Schlag"});
+    }
+  },
+  "Heilung": { // heile 100
+    needsTarget:true,
+    run: ({targetId})=>{
+      Engine.heal({tgtId:targetId,amount:100});
+    }
+  },
+  "Über dem Horizont": { // +120 Max-Leben
+    needsTarget:false,
+    run: ({actorId})=>{
+      Engine.gainLife({tgtId:actorId,amount:120});
+    }
+  },
+  "Wut": { // nächste Schadensattacke +20
+    needsTarget:false,
+    run: ({actorId})=>{
+      Engine.addNextDamageBonus({srcId:actorId,amount:20,label:"Wut"});
+    }
+  },
+  "Vorbereitung": { // +30 auf nächste
+    needsTarget:false,
+    run: ({actorId})=>{
+      Engine.addNextDamageBonus({srcId:actorId,amount:30,label:"Vorbereitung"});
+    }
+  },
+  // Beispiele für Rage-Quelle (Feurige Waffen/Hartes Training: +10 Wut)
+  "Feurige Waffen": {
+    needsTarget:false,
+    run: ({actorId})=>{ Engine.addRage({srcId:actorId,amount:10}); }
+  },
+  "Hartes Training": {
+    needsTarget:false,
+    run: ({actorId})=>{ Engine.addRage({srcId:actorId,amount:10}); }
+  }
+  // ➜ Weitere Attacken kannst du genau hier ergänzen – inkl. Flags/Einmalig etc.
+};
+
+/* ======================
+   ACTION FLOW (Priority)
+====================== */
+commitBtn.addEventListener('click', ()=>{
+  if(state.priority!=='me'){ warn("Du hast gerade keine Priority."); return; }
+  const actor = getUnit(state.selection.actor);
+  if(!actor){ warn("Kein Akteur gewählt."); return; }
+  if(actor.side!=='me'){ warn("Du kannst nur mit deinen Einheiten agieren."); return; }
+  const actionName = state.selection.action;
+  if(!actionName){ warn("Bitte eine Attacke auswählen."); return; }
+
+  const impl = ATK[actionName];
+  if(!impl){ warn(`Kein Handler für „${actionName}“ (Template in ATK ergänzen).`); return; }
+
+  let targetId = state.selection.target;
+  if(impl.needsTarget && !targetId){ warn("Bitte ein Ziel wählen."); return; }
+  if(!impl.needsTarget) targetId = null;
+
+  // RUN
+  try{
+    impl.run({actorId:actor.id, targetId});
+    // Log für Auslöser
+    logLine({who:'me', text:`setzt <b>${actionName}</b> ein${targetId?` → <i>${getUnit(targetId)?.name||targetId}</i>`:''}.`});
+  }catch(e){
+    warn("Fehler bei Attacke: "+(e?.message||e));
+    return;
+  }
+
+  postActionCleanup(actor.id, actionName);
+});
+
+passBtn.addEventListener('click', ()=>{
+  if(state.priority!=='me'){ warn("Du hast gerade keine Priority."); return; }
+  logLine({who:'me', text:`passt.`, cls:'muted'});
+  endPriority();
+});
+
+function endPriority(){
+  // Priority wechselt auf den anderen Spieler
+  state.priority = (state.priority==='me'?'opp':'me');
+  // In einem echten Online-Match würdest du hier per Ably synchronisieren.
+  renderAll();
+
+  // (Demo) Gegner macht nichts automatisch – du kannst für Offline-Tests unten einen Dummy-Move triggern.
+}
+
+/* Nach jeder Aktion: ggf. Verbrauch/Flags setzen, Sieg prüfen, Priority wechseln */
+function postActionCleanup(actorId, actionName){
+  // hier könntest du Einmalig/Zweimalig-Verbrauch, Schnell-/Extra-Logik etc. einbauen.
+  // Basics:
+  checkWin();
+  endPriority();
+}
+
+function checkWin(){
+  if(state.me.hp<=0 && state.opp.hp<=0){
+    logLine({text:"Unentschieden – beide besiegt.", who:'sys'});
+    commitBtn.disabled = passBtn.disabled = true;
+  } else if(state.me.hp<=0){
+    logLine({text:"Du wurdest besiegt.", who:'sys'});
+    commitBtn.disabled = passBtn.disabled = true;
+  } else if(state.opp.hp<=0){
+    logLine({text:"Der Gegner wurde besiegt! 🎉", who:'sys'});
+    commitBtn.disabled = passBtn.disabled = true;
+  }
+}
+
+/* ======================
+   HELPERS / UI
+====================== */
+function warn(msg){ logLine({who:'sys', text:`<span class="warnb">Hinweis:</span> ${msg}`}); }
+
+/* Demo-Buttons zum schnellen Testen: Monster hinzufügen */
+$("addMyMon").addEventListener('click', ()=>{
+  const m={id:newId(), name:`Mein Mon ${state.myMonsters.length+1}`, hp:50, maxHp:50, side:'me', knownAttacks:new Set()};
+  state.myMonsters.push(m); renderAll();
+});
+$("addOppMon").addEventListener('click', ()=>{
+  const m={id:newId(), name:`Opp Mon ${state.oppMonsters.length+1}`, hp:50, maxHp:50, side:'opp', knownAttacks:new Set()};
+  state.oppMonsters.push(m); renderAll();
+});
+
+/* Initiale Logs & UI */
+logLine({who:'sys', text:`Match geladen. Starter (Priority): <b>${state.priority==='me'?'Du':'Gegner'}</b>.`});
+renderAll();
+
+/* ======================
+   NOTES (für dich)
+======================
+- Schnelle Attacken / Zeitfenster / Extra-Attacken kannst du in der Priority-Schicht ausbauen:
+  * pro „Zeitfenster“ markieren, wofür eine schnelle Attacke zählt (vorheriger/nächster Zug),
+    siehe Dokumentation (Schnell-Attacken). 
+- Konter/„Reaktion gewährt Priority“: beim Auslösen einer Attacke könntest du ein Reaktionsfenster
+  öffnen und dem Gegner Priority geben; nach der Reaktion gehst du zurück. 
+- Einmalig/Zweimalig/Super-X: pro Attacke Flags und Verbrauch hier in `postActionCleanup()` tracken.
+- Passives (z. B. „Metallschild“) sind im Start gesetzt; weitere kannst du beim State-Aufbau berücksichtigen.
+*/
+</script>
+</body>
+</html>
