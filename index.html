@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <title>OsJa</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="stylesheet" href="./styles.css"/>
+</head>
+<body>
+<div id="app">
+  <div id="messages" class="messages"></div>
+
+  <section data-screen="0" class="screen">
+    <h2>Spiel beitreten</h2>
+    <input id="name" placeholder="Dein Name"/>
+    <input id="lobby" placeholder="Lobby-Code"/>
+    <select id="playerIdx">
+      <option value="0">Spieler 1</option>
+      <option value="1">Spieler 2</option>
+    </select>
+    <button id="btnJoin">Beitreten</button>
+  </section>
+
+  <section data-screen="1" class="screen hidden">
+    <h2>Attacken wählen</h2>
+    <div id="attacksContainer" class="grid"></div>
+    <div class="actions">
+      <button id="btnConfirmAttacks">Wahl bestätigen</button>
+    </div>
+  </section>
+
+  <section data-screen="2" class="screen hidden">
+    <h2>Leben zahlen</h2>
+    <div class="toggles">
+      <label><input type="checkbox" id="cb_start"> Zuganfang</label>
+      <label><input type="checkbox" id="cb_end"> Zugende</label>
+      <label><input type="checkbox" id="cb_react"> Reaktion</label>
+    </div>
+    <div>
+      <label>Zu zahlende Leben:
+        <input type="number" id="pay" value="0" step="5" min="0"/>
+      </label>
+    </div>
+    <button id="btnPay">Bezahlen</button>
+    <div>
+      <h3>Bekannte Attacken des Gegners</h3>
+      <div id="knownOppAttacks" class="grid small"></div>
+    </div>
+  </section>
+
+  <section data-screen="3" class="screen hidden">
+    <div class="statusbar">
+      <div>Zug: <span id="turnNum">-</span></div>
+      <div>Zeit: <span id="turnPhase">-</span></div>
+      <div>Priority: <span id="priorityName">-</span></div>
+    </div>
+
+    <div class="toggles">
+      <label><input type="checkbox" id="cb_start_3"> Zuganfang</label>
+      <label><input type="checkbox" id="cb_end_3"> Zugende</label>
+      <label><input type="checkbox" id="cb_react_3"> Reaktion</label>
+    </div>
+
+    <div class="columns">
+      <div class="column">
+        <h3>Stack</h3>
+        <ul id="stackList" class="stack"></ul>
+      </div>
+
+      <div class="column">
+        <h3>Freunde</h3>
+        <div id="friends" class="cardlist"></div>
+        <h3>Gegner</h3>
+        <div id="foes" class="cardlist"></div>
+      </div>
+
+      <div class="column">
+        <h3>Attacken</h3>
+        <div id="attacksPanel" class="grid"></div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="btnUseAttack">Attacke einsetzen</button>
+    </div>
+  </section>
+
+  <section data-screen="4" class="screen hidden">
+    <h2>Spiel beendet</h2>
+    <div id="winnerBanner"></div>
+  </section>
+</div>
+
+<script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>
